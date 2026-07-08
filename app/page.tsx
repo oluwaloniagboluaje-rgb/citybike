@@ -1,65 +1,166 @@
+import Link from "next/link";
 import Image from "next/image";
+import {
+  MapPin,
+  MessageCircle,
+  ShieldCheck,
+  Globe2,
+  PackageSearch,
+  Truck,
+  Building2,
+  Bike,
+} from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div>
+      {/* image */}
+      <section className="bg-black text-white">
+        <div className="mx-auto max-w-6xl px-4 py-20 text-center">
+          <Image
+            src="/citybike-logo.jpeg"
+            alt="CityBike Logistics"
+            width={88}
+            height={88}
+            className="mx-auto mb-6 rounded-2xl"
+            priority
+          />
+          <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-1.5 text-sm text-orange-400">
+            <Bike className="h-4 w-4" />
+            Local · Interstate · International
+          </div>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+            Your package.
+            <br />
+            <span className="text-orange-500">Our speed.</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mx-auto mt-4 max-w-xl text-neutral-300">
+            CityBike Logistics gets your parcels, documents, and cargo moving
+            — across town, across Nigeria, or across the world — tracked live
+            every step of the way.
           </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/register"
+              className="rounded-md bg-orange-600 px-5 py-2.5 font-medium text-white hover:bg-orange-500"
+            >
+              Get Started
+            </Link>
+            <Link
+              href="/track"
+              className="flex items-center gap-1.5 rounded-md border border-neutral-700 px-5 py-2.5 font-medium text-white hover:bg-neutral-900"
+            >
+              <PackageSearch className="h-4 w-4" />
+              Track a Package
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+      </section>
+
+      <div className="mx-auto max-w-6xl px-4 py-16">
+        <div className="grid gap-8 sm:grid-cols-3">
+          <Feature
+            icon={<Bike className="h-6 w-6" />}
+            title="Book in seconds"
+            desc="Tell us your pickup, drop-off, and package details. Our team confirms and assigns a rider right away."
+          />
+          <Feature
+            icon={<MapPin className="h-6 w-6" />}
+            title="Live tracking"
+            desc="Follow your rider's exact location in real time on a live map, from pickup to delivery."
+          />
+          <Feature
+            icon={<MessageCircle className="h-6 w-6" />}
+            title="Real-time chat"
+            desc="Message your driver or our team directly for updates, directions, or special instructions."
+          />
+        </div>
+
+        <div className="mt-16">
+          <h2 className="text-center text-2xl font-bold text-neutral-900">
+            Our Services
+          </h2>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ServiceCard
+              icon={<Bike className="h-5 w-5" />}
+              title="Local Pickup & Delivery"
+              desc="Fast, same-city delivery for parcels, documents, and goods."
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <ServiceCard
+              icon={<Truck className="h-5 w-5" />}
+              title="Interstate Delivery"
+              desc="Reliable parcel and cargo delivery between states."
+            />
+            <ServiceCard
+              icon={<Globe2 className="h-5 w-5" />}
+              title="International Cargo Shipping"
+              desc="Shipping to the UK, USA, Canada, and beyond."
+            />
+            <ServiceCard
+              icon={<PackageSearch className="h-5 w-5" />}
+              title="DHL Express Shipping"
+              desc="Trusted express shipping through our DHL partnership."
+            />
+            <ServiceCard
+              icon={<Building2 className="h-5 w-5" />}
+              title="E-commerce Fulfillment"
+              desc="Order fulfillment and last-mile delivery for online sellers."
+            />
+            <ServiceCard
+              icon={<ShieldCheck className="h-5 w-5" />}
+              title="Corporate Logistics"
+              desc="Errand services and delivery partnerships for businesses."
+            />
+          </div>
         </div>
-      </main>
+
+        <div className="mt-16 flex items-center justify-center gap-2 text-sm text-neutral-500">
+          <ShieldCheck className="h-4 w-4" />
+          Every order is confirmed by our team before a rider is assigned.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Feature({
+  icon,
+  title,
+  desc,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-white p-6">
+      <div className="mb-3 inline-flex rounded-lg bg-orange-50 p-2.5 text-orange-600">
+        {icon}
+      </div>
+      <h3 className="font-semibold text-neutral-900">{title}</h3>
+      <p className="mt-1 text-sm text-neutral-600">{desc}</p>
+    </div>
+  );
+}
+
+function ServiceCard({
+  icon,
+  title,
+  desc,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="flex gap-3 rounded-lg border border-neutral-200 bg-white p-4">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-black text-orange-500">
+        {icon}
+      </div>
+      <div>
+        <h4 className="text-sm font-semibold text-neutral-900">{title}</h4>
+        <p className="mt-0.5 text-xs text-neutral-500">{desc}</p>
+      </div>
     </div>
   );
 }

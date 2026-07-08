@@ -1,0 +1,84 @@
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { useAuth } from "@/context/AuthContext";
+import { LogOut, PackageSearch } from "lucide-react";
+
+export default function Navbar() {
+  const { user, logout } = useAuth();
+
+  const dashboardHref = user
+    ? user.role === "admin"
+      ? "/dashboard/admin"
+      : user.role === "driver"
+      ? "/dashboard/driver"
+      : "/dashboard/customer"
+    : "/login";
+
+  return (
+    <nav className="border-b border-neutral-200 bg-black">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <Link href="/" className="flex items-center gap-2 font-bold text-white">
+          <Image
+            src="/citybike-logo.jpeg"
+            alt="CityBike Logistics"
+            width={36}
+            height={36}
+            className="h-16 w-auto"
+            priority
+          />
+          <span>
+            CityBike <span className="text-orange-500">Logistics</span>
+          </span>
+        </Link>
+
+        <div className="flex items-center gap-4">
+          <Link
+            href="/track"
+            className="flex items-center gap-1.5 text-sm font-medium text-neutral-300 hover:text-white"
+          >
+            <PackageSearch className="h-4 w-4" />
+            Track Package
+          </Link>
+
+          {user ? (
+            <>
+              <Link
+                href={dashboardHref}
+                className="text-sm font-medium text-neutral-300 hover:text-white"
+              >
+                Dashboard
+              </Link>
+              <span className="hidden text-sm text-neutral-400 sm:inline">
+                {user.name} · {user.role}
+              </span>
+              <button
+                onClick={logout}
+                className="flex items-center gap-1 rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-neutral-200 hover:bg-neutral-800"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="text-sm font-medium text-neutral-300 hover:text-white"
+              >
+                Login
+              </Link>
+              <Link
+                href="/register"
+                className="rounded-md bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-500"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    </nav>
+  );
+}
