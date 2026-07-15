@@ -5,7 +5,8 @@ import { supabase, orderChatChannel } from "@/libs/supabaseClient";
 import { useAuth } from "@/context/AuthContext";
 import { MessageClient } from "@/types";
 import { Send } from "lucide-react";
-import { RealtimeChannel } from "@/libs/supabaseClient";
+import { RealtimeChannel } from "@supabase/supabase-js";
+
 
 export default function ChatBox({ orderId }: { orderId: string }) {
   const { user } = useAuth();
