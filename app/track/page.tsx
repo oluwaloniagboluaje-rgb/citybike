@@ -104,6 +104,14 @@ export default function PublicTrackPage() {
               <span>
                 To: {result.dropoff.city}, {result.dropoff.country}
               </span>
+              <span>
+                Pickup: {new Date(result.pickupTime).toLocaleString()}
+              </span>
+              {result.eta && (
+                <span>
+                  ETA: {new Date(result.eta).toLocaleString()}
+                </span>
+              )}
             </div>
           </div>
 
@@ -111,6 +119,7 @@ export default function PublicTrackPage() {
             pickup={{ ...result.pickup, address: result.pickup.city }}
             dropoff={{ ...result.dropoff, address: result.dropoff.city }}
             driverPosition={result.lastLocation}
+            locationHistory={result.locationHistory}
           />
 
           <div className="rounded-lg border border-neutral-200 bg-white p-5">

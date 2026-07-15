@@ -7,6 +7,8 @@ import { useAuth } from "@/context/AuthContext";
 import { OrderClient, ServiceType, SERVICE_TYPE_LABELS, COUNTRY_OPTIONS } from "@/types";
 import StatusBadge from "@/components/ui/statusbadge";
 import { Plus, MapPin, Globe2 } from "lucide-react";
+import { uploadPaymentProof } from "@/libs/uploadPaymentProof";
+import { geocodeAddress } from "@/libs/geocode";
 
 export default function CustomerDashboard() {
   const { user, loading } = useAuth();
@@ -87,9 +89,19 @@ export default function CustomerDashboard() {
                     Driver: {o.driver.name}
                   </p>
                 )}
+                {o.eta && (
+                  <p className="mt-1 text-sm text-neutral-500">
+                    ETA: {new Date(o.eta).toLocaleString()}
+                  </p>
+                )}
               </div>
               <div className="flex flex-col items-end gap-1.5">
                 <StatusBadge status={o.status} />
+                {o.price != null && (
+                  <span className="text-xs font-medium text-neutral-500">
+                    ₦{o.price.toLocaleString()}
+                  </span>
+                )}
                 {o.isInternational && (
                   <span className="flex items-center gap-1 rounded-full bg-black px-2 py-0.5 text-[11px] font-medium text-white">
                     <Globe2 className="h-3 w-3" />
@@ -105,26 +117,36 @@ export default function CustomerDashboard() {
   );
 }
 
+interface CreatedOrder {
+  _id: string;
+  trackingNumber: string;
+  paymentMethod: "bank_transfer" | "paystack";
+  paymentStatus: "pending" | "paid" | "failed";
+  price?: number;
+}
+
 function NewOrderForm({ onCreated }: { onCreated: () => void }) {
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupCity, setPickupCity] = useState("");
-  const [pickupLat, setPickupLat] = useState("");
-  const [pickupLng, setPickupLng] = useState("");
   const [dropoffAddress, setDropoffAddress] = useState("");
   const [dropoffCity, setDropoffCity] = useState("");
   const [dropoffCountry, setDropoffCountry] = useState("Nigeria");
-  const [dropoffLat, setDropoffLat] = useState("");
-  const [dropoffLng, setDropoffLng] = useState("");
   const [serviceType, setServiceType] = useState<ServiceType>("local");
   const [packageDescription, setPackageDescription] = useState("");
   const [packageSize, setPackageSize] = useState<"small" | "medium" | "large">(
     "small"
   );
+  const [weightKg, setWeightKg] = useState("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"bank_transfer" | "paystack">(
+    "bank_transfer"
+  );
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [createdTrackingNumber, setCreatedTrackingNumber] = useState("");
+  const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadDone, setUploadDone] = useState(false);
 
   const isInternational = dropoffCountry.trim().toLowerCase() !== "nigeria";
 
@@ -133,6 +155,20 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
     setError("");
     setSubmitting(true);
     try {
+      let pickupLoc, dropoffLoc;
+      try {
+        pickupLoc = await geocodeAddress(pickupAddress, pickupCity, "Nigeria");
+      } catch {
+        setError("Could not locate the pickup address. Please check it and try again.");
+        return;
+      }
+      try {
+        dropoffLoc = await geocodeAddress(dropoffAddress, dropoffCity, dropoffCountry);
+      } catch {
+        setError("Could not locate the drop-off address. Please check it and try again.");
+        return;
+      }
+
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -141,49 +177,129 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
             address: pickupAddress,
             city: pickupCity,
             country: "Nigeria",
-            lat: parseFloat(pickupLat),
-            lng: parseFloat(pickupLng),
+            lat: pickupLoc.lat,
+            lng: pickupLoc.lng,
           },
           dropoff: {
             address: dropoffAddress,
             city: dropoffCity,
             country: dropoffCountry,
-            lat: parseFloat(dropoffLat),
-            lng: parseFloat(dropoffLng),
+            lat: dropoffLoc.lat,
+            lng: dropoffLoc.lng,
           },
           serviceType,
           packageDescription,
           packageSize,
+          weightKg: isInternational && weightKg ? parseFloat(weightKg) : undefined,
           recipientName,
           recipientPhone,
+          paymentMethod,
         }),
       });
 
-      let data: { error?: string; order?: { trackingNumber?: string } } = {};
+      let data: { error?: string; order?: CreatedOrder } = {};
       try {
         data = await res.json();
       } catch {
         data = {};
       }
 
-      if (!res.ok) {
+      if (!res.ok || !data.order) {
         setError(data.error || "Could not create order");
         return;
       }
-      setCreatedTrackingNumber(data.order.trackingNumber);
-      setTimeout(onCreated, 1500);
+      setCreatedOrder(data.order);
+      if (paymentMethod !== "bank_transfer") {
+        setTimeout(onCreated, 1500);
+      }
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (createdTrackingNumber) {
+  async function handleProofUpload(file: File) {
+    if (!createdOrder) return;
+    setUploading(true);
+    try {
+      const url = await uploadPaymentProof(createdOrder._id, file);
+      const res = await fetch(`/api/orders/${createdOrder._id}/payment-proof`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proofUrl: url }),
+      });
+      if (res.ok) {
+        setUploadDone(true);
+        setTimeout(onCreated, 1500);
+      } else {
+        setError("Could not save proof of payment, please try again.");
+      }
+    } catch {
+      setError("Upload failed, please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  if (createdOrder) {
     return (
-      <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-5 text-center">
+      <div className="mt-4 space-y-4 rounded-lg border border-green-200 bg-green-50 p-5 text-center">
         <p className="text-sm text-green-700">Order created! Your tracking number is</p>
         <p className="mt-1 font-mono text-xl font-bold tracking-wide text-green-800">
-          #{createdTrackingNumber}
+          #{createdOrder.trackingNumber}
         </p>
+        {createdOrder.price != null && (
+          <p className="mt-1 text-sm text-neutral-700">
+            Estimated cost:{" "}
+            <span className="font-semibold">₦{createdOrder.price.toLocaleString()}</span>
+          </p>
+        )}
+
+        {createdOrder.paymentMethod === "bank_transfer" && !uploadDone && (
+          <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-left">
+            <h3 className="text-sm font-semibold text-orange-800">
+              💳 Payment Details – CityBike Logistics
+            </h3>
+            <p className="mt-1 text-sm text-orange-700">
+              Kindly make payment to:
+            </p>
+            <div className="mt-2 text-sm text-neutral-700">
+              <p><strong>Bank:</strong> Moniepoint MFB</p>
+              <p><strong>Account Name:</strong> CityBike Logistics Global Service Ltd</p>
+              <p><strong>Account Number:</strong> 5256910759</p>
+            </div>
+            <p className="mt-2 text-xs text-orange-700">
+              ✅ Please send payment confirmation after transfer to{" "}
+              <a
+                href="mailto:Citybikelogistics1@gmail.com"
+                className="underline"
+              >
+                Citybikelogistics1@gmail.com
+              </a>
+              . Thank you!
+            </p>
+
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              disabled={uploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleProofUpload(file);
+              }}
+              className="mt-3 block text-sm"
+            />
+            {uploading && (
+              <p className="mt-2 text-xs text-neutral-500">Uploading...</p>
+            )}
+            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          </div>
+        )}
+
+        {uploadDone && (
+          <p className="mt-2 text-sm text-green-700">
+            Proof uploaded! We&apos;ll confirm your payment shortly.
+          </p>
+        )}
       </div>
     );
   }
@@ -193,19 +309,6 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
       onSubmit={handleSubmit}
       className="mt-4 space-y-4 rounded-lg border border-neutral-200 bg-white p-5"
     >
-      <p className="text-xs text-neutral-500">
-        Tip: use{" "}
-        <a
-          href="https://www.latlong.net/"
-          target="_blank"
-          rel="noreferrer"
-          className="underline"
-        >
-          latlong.net
-        </a>{" "}
-        to look up coordinates for an address.
-      </p>
-
       <div>
         <label className="mb-1 block text-sm font-medium text-neutral-700">
           Service type
@@ -242,26 +345,6 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
             onChange={(e) => setPickupCity(e.target.value)}
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
-          <div className="flex gap-2">
-            <input
-              required
-              type="number"
-              step="any"
-              placeholder="Latitude"
-              value={pickupLat}
-              onChange={(e) => setPickupLat(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-            />
-            <input
-              required
-              type="number"
-              step="any"
-              placeholder="Longitude"
-              value={pickupLng}
-              onChange={(e) => setPickupLng(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-            />
-          </div>
         </fieldset>
 
         <fieldset className="space-y-2 rounded-md border border-neutral-200 p-3">
@@ -293,26 +376,6 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
               </option>
             ))}
           </select>
-          <div className="flex gap-2">
-            <input
-              required
-              type="number"
-              step="any"
-              placeholder="Latitude"
-              value={dropoffLat}
-              onChange={(e) => setDropoffLat(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-            />
-            <input
-              required
-              type="number"
-              step="any"
-              placeholder="Longitude"
-              value={dropoffLng}
-              onChange={(e) => setDropoffLng(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-            />
-          </div>
         </fieldset>
       </div>
 
@@ -344,6 +407,24 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
             <option value="large">Large</option>
           </select>
         </div>
+
+        {isInternational && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Package weight (kg)
+            </label>
+            <input
+              required
+              type="number"
+              step="any"
+              min="0.1"
+              value={weightKg}
+              onChange={(e) => setWeightKg(e.target.value)}
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+          </div>
+        )}
+
         <div>
           <label className="mb-1 block text-sm font-medium text-neutral-700">
             Recipient name
@@ -368,6 +449,24 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
         </div>
       </div>
 
+      <div>
+        <label className="mb-1 block text-sm font-medium text-neutral-700">
+          Payment Method
+        </label>
+        <select
+          value={paymentMethod}
+          onChange={(e) =>
+            setPaymentMethod(e.target.value as "bank_transfer" | "paystack")
+          }
+          className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+        >
+          <option value="bank_transfer">Bank Transfer</option>
+          <option value="paystack" disabled>
+            Card Payment (Paystack) — coming soon
+          </option>
+        </select>
+      </div>
+
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <button
@@ -375,7 +474,7 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
         disabled={submitting}
         className="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60"
       >
-        {submitting ? "Submitting..." : "Submit Order"}
+        {submitting ? "Locating addresses & submitting..." : "Submit Order"}
       </button>
     </form>
   );

@@ -32,6 +32,8 @@ export async function GET(
     isInternational: order.isInternational,
     packageDescription: order.packageDescription,
     recipientName: order.recipientName,
+    pickupTime: order.pickupTime.toISOString(),
+    eta: order.eta?.toISOString(),
     pickup: {
       city: order.pickup.city,
       country: order.pickup.country,
@@ -44,6 +46,11 @@ export async function GET(
       lat: order.dropoff.lat,
       lng: order.dropoff.lng,
     },
+    locationHistory: order.locationHistory?.map((point: { lat: number; lng: number; updatedAt: Date }) => ({
+      lat: point.lat,
+      lng: point.lng,
+      updatedAt: point.updatedAt.toISOString(),
+    })),
     lastLocation: order.lastLocation
       ? {
           lat: order.lastLocation.lat,
@@ -54,5 +61,5 @@ export async function GET(
     createdAt: order.createdAt.toISOString(),
   };
 
-  return NextResponse.json({ result });
+  return NextResponse.json(result);
 }

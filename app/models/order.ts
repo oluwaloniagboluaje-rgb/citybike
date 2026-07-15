@@ -18,6 +18,10 @@ export type ServiceType =
   | "errand"
   | "corporate";
 
+export type PaymentMethod = "bank_transfer" | "paystack";
+
+export type PaymentStatus = "pending" | "paid" | "failed";
+
 export interface ILocationPoint {
   address: string;
   city: string;
@@ -36,12 +40,19 @@ export interface IOrder extends Document {
   isInternational: boolean;
   packageDescription: string;
   packageSize: "small" | "medium" | "large";
+  weightKg?: number;
   recipientName: string;
   recipientPhone: string;
+  pickupTime: Date;
+  eta?: Date;
   status: OrderStatus;
   statusHistory: { status: OrderStatus; at: Date }[];
   price?: number;
   lastLocation?: { lat: number; lng: number; updatedAt: Date };
+  locationHistory?: { lat: number; lng: number; updatedAt: Date }[];
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  proofOfPaymentUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -119,6 +130,8 @@ const OrderSchema = new Schema<IOrder>(
       default: "small",
     },
 
+    weightKg: Number,
+
     recipientName: {
       type: String,
       required: true,
@@ -127,6 +140,15 @@ const OrderSchema = new Schema<IOrder>(
     recipientPhone: {
       type: String,
       required: true,
+    },
+
+    pickupTime: {
+      type: Date,
+      default: Date.now,
+    },
+
+    eta: {
+      type: Date,
     },
 
     status: {
@@ -163,6 +185,28 @@ const OrderSchema = new Schema<IOrder>(
       lng: Number,
       updatedAt: Date,
     },
+
+    locationHistory: [
+      {
+        lat: Number,
+        lng: Number,
+        updatedAt: Date,
+      },
+    ],
+
+    paymentMethod: {
+      type: String,
+      enum: ["bank_transfer", "paystack"],
+      required: true,
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed"],
+      default: "pending",
+    },
+
+    proofOfPaymentUrl: String,
   },
   {
     timestamps: true,

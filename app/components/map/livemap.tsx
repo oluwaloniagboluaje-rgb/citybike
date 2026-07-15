@@ -1,12 +1,9 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
-import { useMemo } from "react";
+import { useEffect } from "react";
 
-// Leaflet's default marker icons reference local asset paths that don't
-// resolve correctly under webpack/Next.js bundling, so we point them at CDN
-// URLs instead. This only affects display, not functionality.
 const pickupIcon = new L.Icon({
   iconUrl:
     "https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers@master/img/marker-icon-blue.png",
@@ -44,33 +41,62 @@ export interface LiveMapProps {
   pickup: { lat: number; lng: number; address: string };
   dropoff: { lat: number; lng: number; address: string };
   driverPosition?: { lat: number; lng: number } | null;
+  locationHistory?: { lat: number; lng: number }[];
   heightClassName?: string;
+}
+
+// Automatically zooms/pans the map so every relevant point (pickup,
+// dropoff, driver, route history) is visible. This is what makes
+// international routes (thousands of km apart) render readably instead
+// of showing a blank zoomed-in tile.
+function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      map.setView(points[0], 12);
+      return;
+    }
+    const bounds = L.latLngBounds(points);
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }, [map, points]);
+
+  return null;
 }
 
 export default function LiveMap({
   pickup,
   dropoff,
   driverPosition,
+  locationHistory,
   heightClassName = "h-96",
 }: LiveMapProps) {
-  const center = useMemo<[number, number]>(() => {
-    if (driverPosition) return [driverPosition.lat, driverPosition.lng];
-    return [
-      (pickup.lat + dropoff.lat) / 2,
-      (pickup.lng + dropoff.lng) / 2,
-    ];
-  }, [pickup, dropoff, driverPosition]);
+  const historyPoints = locationHistory?.map(
+    (point) => [point.lat, point.lng] as [number, number]
+  );
 
   const routePoints: [number, number][] = [
     [pickup.lat, pickup.lng],
-    ...(driverPosition ? [[driverPosition.lat, driverPosition.lng] as [number, number]] : []),
+    ...(historyPoints ?? []),
+    ...(driverPosition && !historyPoints?.length
+      ? [[driverPosition.lat, driverPosition.lng] as [number, number]]
+      : []),
     [dropoff.lat, dropoff.lng],
+  ];
+
+  // Points used purely to calculate the initial zoom/fit — same as
+  // routePoints but without duplicating the driver marker twice.
+  const boundsPoints: [number, number][] = [
+    [pickup.lat, pickup.lng],
+    [dropoff.lat, dropoff.lng],
+    ...(driverPosition ? [[driverPosition.lat, driverPosition.lng] as [number, number]] : []),
   ];
 
   return (
     <div className={`${heightClassName} w-full overflow-hidden rounded-lg border border-neutral-200`}>
       <MapContainer
-        center={center}
+        center={[pickup.lat, pickup.lng]}
         zoom={13}
         scrollWheelZoom
         style={{ height: "100%", width: "100%" }}
@@ -79,6 +105,7 @@ export default function LiveMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <FitBounds points={boundsPoints} />
         <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon}>
           <Popup>Pickup: {pickup.address}</Popup>
         </Marker>

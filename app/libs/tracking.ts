@@ -60,11 +60,12 @@ function randomSegment(length = 6): string {
 }
 
 export function generateTrackingNumber(originCity: string): string {
-  const code = cityCode(originCity);
-  const year = new Date().getFullYear().toString().slice(-2);
-  return `${code}${year}${randomSegment()}`;
+  const randomDigits = `${Date.now().toString().slice(-8)}${Math.floor(
+    1000 + Math.random() * 9000
+  )}`;
+  return `CITYBIKE${randomDigits}`;
 }
 
 export function isLikelyTrackingNumber(value: string): boolean {
-  return /^[A-Z]{3}\d{2}[A-Z0-9]{6}$/i.test(value.trim());
+  return /^CITYBIKE\d{12,}$/i.test(value.trim());
 }

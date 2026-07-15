@@ -41,13 +41,7 @@ export default function RegisterPage() {
         return;
       }
       await refresh();
-      router.push(
-        role === "admin"
-          ? "/dashboard/admin"
-          : role === "driver"
-          ? "/dashboard/driver"
-          : "/dashboard/customer"
-      );
+      router.push(role === "driver" ? "/dashboard/driver" : "/dashboard/customer");
     } finally {
       setLoading(false);
     }
@@ -57,7 +51,7 @@ export default function RegisterPage() {
     <div className="mx-auto flex max-w-sm flex-col justify-center px-4 py-16">
       <h1 className="text-2xl font-bold text-neutral-900">Create an account</h1>
       <p className="mt-1 text-sm text-neutral-600">
-        Sign up as a customer, driver, or admin
+        Sign up as a customer or driver
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
@@ -65,8 +59,8 @@ export default function RegisterPage() {
           <label className="mb-1 block text-sm font-medium text-neutral-700">
             I am a...
           </label>
-          <div className="grid grid-cols-3 gap-2">
-            {(["customer", "driver", "admin"] as UserRole[]).map((r) => (
+          <div className="grid grid-cols-2 gap-2">
+            {(["customer", "driver"] as UserRole[]).map((r) => (
               <button
                 type="button"
                 key={r}

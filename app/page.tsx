@@ -14,9 +14,16 @@ import {
 export default function Home() {
   return (
     <div>
-      {/* image */}
-      <section className="bg-black text-white">
-        <div className="mx-auto max-w-6xl px-4 py-20 text-center">
+      <section className="relative overflow-hidden bg-black text-white">
+        <div className="absolute inset-0">
+          <img
+            src="https://buycars.ng/wp-content/uploads/Top-10-Logistics-Service-Companies-in-Nigeria-scaled.jpg"
+            alt="Logistics service companies in Nigeria"
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/65" />
+        </div>
+        <div className="relative mx-auto max-w-6xl px-4 py-20 text-center">
           <Image
             src="/citybike-logo.jpeg"
             alt="CityBike Logistics"

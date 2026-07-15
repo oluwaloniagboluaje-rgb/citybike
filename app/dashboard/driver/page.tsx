@@ -146,6 +146,11 @@ export default function DriverDashboard() {
                   <p className="mt-1 text-sm text-neutral-500">
                     Recipient: {o.recipientName} ({o.recipientPhone})
                   </p>
+                  {o.eta && (
+                    <p className="mt-1 text-sm text-neutral-500">
+                      ETA: {new Date(o.eta).toLocaleString()}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   <StatusBadge status={o.status} />

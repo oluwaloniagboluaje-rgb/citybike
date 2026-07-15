@@ -20,7 +20,7 @@ export default function ChatBox({ orderId }: { orderId: string }) {
     let active = true;
 
     (async () => {
-      const res = await fetch(`/api/messages/${orderId}`);
+      const res = await fetch(`/api/message/${orderId}`);
       if (!active) return;
       if (res.ok) {
         const data = await res.json();
@@ -55,7 +55,7 @@ export default function ChatBox({ orderId }: { orderId: string }) {
     setText("");
 
     try {
-      const res = await fetch(`/api/messages/${orderId}`, {
+      const res = await fetch(`/api/message/${orderId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: body }),

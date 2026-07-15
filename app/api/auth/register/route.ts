@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/libs/mongodb";
 import User from "@/models/User";
 import { hashPassword, signToken, AUTH_COOKIE_NAME } from "@/libs/auth";
+import { sendMail, getWelcomeEmail } from "@/libs/mailer";
 import { z } from "zod";
 
 const registerSchema = z.object({
@@ -46,6 +47,13 @@ export async function POST(req: NextRequest) {
       vehicleType: role === "driver" ? vehicleType : undefined,
       isAvailable: role === "driver" ? true : undefined,
     });
+
+    try {
+      const welcome = getWelcomeEmail(user.name, user.role);
+      await sendMail({ to: user.email, subject: welcome.subject, html: welcome.html });
+    } catch (mailError) {
+      console.error("Welcome email failed:", mailError);
+    }
 
     const token = signToken({
       userId: user._id.toString(),

@@ -17,9 +17,35 @@ const statusUpdateSchema = z.object({
   ]),
 });
 
-// Only these roles may update order status. Adjust if customers should
-// be able to cancel their own orders, etc.
-const ALLOWED_ROLES = ["admin", "driver"];
+function canUpdateOrderStatus(
+  auth: { userId: string; role: string },
+  order: { customer: { toString(): string }; driver?: { toString(): string } | null; status: string },
+  status: string
+) {
+  if (auth.role === "admin") return true;
+
+  if (status === "cancelled") {
+    if (
+      auth.role === "customer" &&
+      order.customer?.toString() === auth.userId &&
+      ["pending", "confirmed", "assigned"].includes(order.status)
+    ) {
+      return true;
+    }
+
+    if (
+      auth.role === "driver" &&
+      order.driver?.toString() === auth.userId &&
+      ["assigned", "picked_up", "in_transit"].includes(order.status)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  return auth.role === "driver" && order.driver?.toString() === auth.userId;
+}
 
 export async function POST(
   req: NextRequest,
@@ -28,13 +54,6 @@ export async function POST(
   const auth = getUserFromRequest(req);
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!ALLOWED_ROLES.includes(auth.role)) {
-    return NextResponse.json(
-      { error: "You are not permitted to update order status" },
-      { status: 403 }
-    );
   }
 
   await connectDB();
@@ -56,10 +75,23 @@ export async function POST(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  // If it's a driver, only allow them to update orders assigned to them.
-  if (auth.role === "driver" && order.driver?.toString() !== auth.userId) {
+  if (order.status === "cancelled") {
     return NextResponse.json(
-      { error: "This order is not assigned to you" },
+      { error: "This order is already cancelled" },
+      { status: 400 }
+    );
+  }
+
+  if (order.status === "delivered" && status === "cancelled") {
+    return NextResponse.json(
+      { error: "Delivered orders cannot be cancelled" },
+      { status: 400 }
+    );
+  }
+
+  if (!canUpdateOrderStatus(auth, order, status)) {
+    return NextResponse.json(
+      { error: "You are not permitted to update this order status" },
       { status: 403 }
     );
   }

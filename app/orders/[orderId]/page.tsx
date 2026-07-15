@@ -41,13 +41,34 @@ export default function OrderDetailPage() {
     }
   }, [orderId]);
 
+  async function cancelOrder() {
+    if (!order) return;
+    const confirmCancel = window.confirm(
+      "Are you sure you want to cancel this order? This action cannot be undone."
+    );
+    if (!confirmCancel) return;
+
+    const res = await fetch(`/api/orders/${orderId}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "cancelled" }),
+    });
+
+    if (res.ok) {
+      await fetchOrder();
+      setError("");
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Could not cancel order");
+    }
+  }
+
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
       return;
     }
     if (user) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchOrder();
     }
   }, [user, loading, router, fetchOrder]);
@@ -161,11 +182,37 @@ export default function OrderDetailPage() {
         )}
       </div>
 
+      <div className="mt-4 flex flex-wrap gap-4 text-sm text-neutral-600">
+        <span>
+          Pickup time: {new Date(order.pickupTime).toLocaleString()}
+        </span>
+        {order.eta && (
+          <span>
+            Estimated arrival: {new Date(order.eta).toLocaleString()}
+          </span>
+        )}
+      </div>
+
+      {order.status !== "delivered" && order.status !== "cancelled" && (
+        <div className="mt-4">
+          <button
+            onClick={cancelOrder}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Cancel Order
+          </button>
+          {error && (
+            <p className="mt-2 text-sm text-red-600">{error}</p>
+          )}
+        </div>
+      )}
+
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <LiveMap
           pickup={order.pickup}
           dropoff={order.dropoff}
           driverPosition={driverPosition}
+          locationHistory={order.locationHistory}
         />
         <ChatBox orderId={order._id} />
       </div>

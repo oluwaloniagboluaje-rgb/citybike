@@ -57,7 +57,6 @@ export default function AdminDashboard() {
     }
   }, [user, fetchOrders, fetchDrivers]);
 
-  // Live-notify admin of new incoming orders
   useEffect(() => {
     if (!user) return;
     const channel = supabase.channel(ADMIN_NOTIFICATIONS_CHANNEL);
@@ -89,6 +88,15 @@ export default function AdminDashboard() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ driverId }),
+    });
+    if (res.ok) fetchOrders();
+  }
+
+  async function markAsPaid(orderId: string) {
+    const res = await fetch(`/api/orders/${orderId}/payment-status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentStatus: "paid" }),
     });
     if (res.ok) fetchOrders();
   }
@@ -128,8 +136,16 @@ export default function AdminDashboard() {
                   {o.pickup.city} → {o.dropoff.city}
                   {o.isInternational ? `, ${o.dropoff.country}` : ""}
                 </p>
+                {o.eta && (
+                  <p className="mt-1 text-sm text-neutral-500">
+                    ETA: {new Date(o.eta).toLocaleString()}
+                  </p>
+                )}
                 <p className="mt-1 text-sm text-neutral-500">
-                  Customer: {o.customer.name} ({o.customer.phone})
+                  Customer:{" "}
+                  {o.customer
+                    ? `${o.customer.name} (${o.customer.phone})`
+                    : "Unknown customer"}
                 </p>
                 {o.driver && (
                   <p className="mt-1 text-sm text-neutral-500">
@@ -147,6 +163,46 @@ export default function AdminDashboard() {
                 )}
               </div>
             </div>
+
+            {o.paymentMethod === "bank_transfer" && (
+              <div className="mt-3 flex items-center gap-2 border-t border-neutral-100 pt-3 text-sm">
+                <span className="text-neutral-500">Payment:</span>
+                <span
+                  className={
+                    o.paymentStatus === "paid"
+                      ? "font-medium text-green-700"
+                      : "font-medium text-yellow-700"
+                  }
+                >
+                  {o.paymentStatus === "paid" ? "Paid" : "Pending"}
+                </span>
+
+                {o.proofOfPaymentUrl && o.paymentStatus === "pending" && (
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={o.proofOfPaymentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline"
+                    >
+                      View Proof
+                    </a>
+                    <button
+                      onClick={() => markAsPaid(o._id)}
+                      className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
+                    >
+                      Mark as Paid
+                    </button>
+                  </div>
+                )}
+
+                {!o.proofOfPaymentUrl && o.paymentStatus === "pending" && (
+                  <span className="text-xs text-neutral-400">
+                    Awaiting proof of payment upload
+                  </span>
+                )}
+              </div>
+            )}
 
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
               {o.status === "pending" && (
@@ -194,6 +250,7 @@ export default function AdminDashboard() {
                 View & Chat
               </Link>
             </div>
+
           </div>
         ))}
       </div>

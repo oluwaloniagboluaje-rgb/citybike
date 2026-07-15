@@ -18,6 +18,10 @@ export type ServiceType =
   | "errand"
   | "corporate";
 
+export type PaymentMethod = "bank_transfer" | "paystack";
+
+export type PaymentStatus = "pending" | "paid" | "failed";
+
 export interface LocationPoint {
   address: string;
   city: string;
@@ -29,7 +33,7 @@ export interface LocationPoint {
 export interface OrderClient {
   _id: string;
   trackingNumber: string;
-  customer: { _id: string; name: string; phone: string; email: string };
+  customer: { _id: string; name: string; phone: string; email: string } | null;
   driver?: { _id: string; name: string; phone: string } | null;
   pickup: LocationPoint;
   dropoff: LocationPoint;
@@ -37,18 +41,23 @@ export interface OrderClient {
   isInternational: boolean;
   packageDescription: string;
   packageSize: "small" | "medium" | "large";
+  weightKg?: number;
   recipientName: string;
   recipientPhone: string;
+  pickupTime: string;
+  eta?: string;
   status: OrderStatus;
   statusHistory: { status: OrderStatus; at: string }[];
   price?: number;
   lastLocation?: { lat: number; lng: number; updatedAt: string };
+  locationHistory?: { lat: number; lng: number; updatedAt: string }[];
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  proofOfPaymentUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-// Sanitized shape returned by the public (no-login) tracking endpoint -
-// deliberately omits customer/driver contact details.
 export interface PublicTrackingResult {
   trackingNumber: string;
   status: OrderStatus;
@@ -57,8 +66,11 @@ export interface PublicTrackingResult {
   isInternational: boolean;
   packageDescription: string;
   recipientName: string;
+  pickupTime: string;
+  eta?: string;
   pickup: { city: string; country: string; lat: number; lng: number };
   dropoff: { city: string; country: string; lat: number; lng: number };
+  locationHistory?: { lat: number; lng: number; updatedAt: string }[];
   lastLocation?: { lat: number; lng: number; updatedAt: string } | null;
   createdAt: string;
 }

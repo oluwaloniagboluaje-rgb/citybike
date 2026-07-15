@@ -3,6 +3,7 @@ import { connectDB } from "@/libs/mongodb";
 import Order from "@/models/order";
 import User from "@/models/User";
 import { getUserFromRequest } from "@/libs/auth";
+import { sendMail, getDriverAssignedEmail } from "@/libs/mailer";
 import { z } from "zod";
 
 const assignSchema = z.object({
@@ -59,8 +60,26 @@ export async function POST(
 
   const populated = await Order.findById(order._id)
     .populate("customer", "name phone email")
-    .populate("driver", "name phone")
+    .populate("driver", "name phone email")
     .lean();
+
+  if (populated?.driver?.email && populated?.customer?.name) {
+    try {
+      const driverEmail = getDriverAssignedEmail(
+        populated.customer.name,
+        driver.name,
+        populated.trackingNumber,
+        order._id.toString()
+      );
+      await sendMail({
+        to: populated.driver.email,
+        subject: driverEmail.subject,
+        html: driverEmail.html,
+      });
+    } catch (mailError) {
+      console.error("Driver assignment email failed:", mailError);
+    }
+  }
 
   return NextResponse.json({ order: populated });
 }
