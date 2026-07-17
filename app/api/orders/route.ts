@@ -10,6 +10,11 @@ import { estimateTransitDurationMs } from "@/libs/eta";
 import { sendMail, getOrderCreatedEmail } from "@/libs/mailer";
 import { z } from "zod";
 
+// Referencing User here (even trivially) prevents production bundlers
+// from tree-shaking this import, which would otherwise silently drop
+// the mongoose.model("User", ...) registration and break populate().
+void User;
+
 const locationSchema = z.object({
   address: z.string().min(1),
   city: z.string().min(1),
