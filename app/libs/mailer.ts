@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { OrderStatus } from "@/models/order";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_FROM_NAME = "CityBike Logistics";
 // Set this once your domain is verified in Resend, e.g. "no-reply@citybikelogistics.com".
 // Until then, leave unset and the app falls back to Gmail SMTP so emails
 // keep working during development.
@@ -44,7 +45,7 @@ export async function sendMail(options: {
   // reliable, production-ready path with proper inbox delivery.
   if (resend && RESEND_FROM_EMAIL) {
     return resend.emails.send({
-      from: RESEND_FROM_EMAIL,
+      from: `${RESEND_FROM_NAME} <${RESEND_FROM_EMAIL}>`,
       to: options.to,
       subject: options.subject,
       html: options.html,
@@ -170,6 +171,36 @@ export function getOrderStatusUpdateEmail(
         <p>Tracking number: <strong>#${trackingNumber}</strong></p>
         <p>You can check the latest status anytime on our tracking page.</p>
         <p><strong>CityBike Logistics Team</strong></p>
+      </div>
+    `,
+  };
+}
+
+// Sent to every admin user whenever a new order is created, so they know
+// to log in and confirm/assign a driver. This is separate from the
+// realtime dashboard bell notification — this is an actual email.
+export function getAdminNewOrderEmail(params: {
+  trackingNumber: string;
+  customerName: string;
+  serviceType: string;
+  pickupCity: string;
+  dropoffCity: string;
+}) {
+  const { trackingNumber, customerName, serviceType, pickupCity, dropoffCity } = params;
+  return {
+    subject: `New order received (#${trackingNumber})`,
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #1f2937;">
+        <h1 style="color: #f97316;">New Order Received</h1>
+        <p>A new order has just been placed and needs review.</p>
+        <p>
+          <strong>Tracking number:</strong> #${trackingNumber}<br />
+          <strong>Customer:</strong> ${customerName}<br />
+          <strong>Service type:</strong> ${serviceType}<br />
+          <strong>Route:</strong> ${pickupCity} → ${dropoffCity}
+        </p>
+        <p>Log in to the admin dashboard to confirm this order and assign a driver.</p>
+        <p><strong>CityBike Logistics System</strong></p>
       </div>
     `,
   };

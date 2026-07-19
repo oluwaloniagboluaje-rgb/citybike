@@ -7,7 +7,7 @@ import { serverBroadcast, ADMIN_NOTIFICATIONS_CHANNEL } from "@/libs/broadcast";
 import { generateTrackingNumber } from "@/libs/tracking";
 import { haversineDistanceKm, calculatePrice } from "@/libs/pricing";
 import { estimateTransitDurationMs } from "@/libs/eta";
-import { sendMail, getOrderCreatedEmail } from "@/libs/mailer";
+import { sendMail, getOrderCreatedEmail, getAdminNewOrderEmail } from "@/libs/mailer";
 import { z } from "zod";
 
 // Referencing User here (even trivially) prevents production bundlers
@@ -180,6 +180,35 @@ export async function POST(req: NextRequest) {
       } catch (mailError) {
         console.error("Order confirmation email failed:", mailError);
       }
+    }
+
+    // Notify every admin by email that a new order needs review, so they
+    // know to log in and confirm/assign a driver — separate from the
+    // realtime dashboard bell notification above.
+    try {
+      const admins = await User.find({ role: "admin" }).select("email name").lean();
+      const adminEmail = getAdminNewOrderEmail({
+        trackingNumber: populated?.trackingNumber || trackingNumber,
+        customerName: populated?.customer?.name || "Unknown customer",
+        serviceType: finalServiceType,
+        pickupCity: pickup.city,
+        dropoffCity: dropoff.city,
+      });
+      await Promise.all(
+        admins
+          .filter((a) => a.email)
+          .map((a) =>
+            sendMail({
+              to: a.email,
+              subject: adminEmail.subject,
+              html: adminEmail.html,
+            }).catch((err) =>
+              console.error(`Admin notification email to ${a.email} failed:`, err)
+            )
+          )
+      );
+    } catch (adminMailError) {
+      console.error("Admin notification email lookup/send failed:", adminMailError);
     }
 
     return NextResponse.json({ order: populated }, { status: 201 });
