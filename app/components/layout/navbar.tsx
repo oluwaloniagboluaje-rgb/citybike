@@ -9,6 +9,7 @@ import { LogOut, PackageSearch, Menu, X } from "lucide-react";
 export default function Navbar() {
   const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const dashboardHref = user
     ? user.role === "admin"
@@ -17,6 +18,12 @@ export default function Navbar() {
       ? "/dashboard/driver"
       : "/dashboard/customer"
     : "/login";
+
+  function confirmLogout() {
+    setShowLogoutModal(false);
+    setMobileMenuOpen(false);
+    logout();
+  }
 
   return (
     <nav className="border-b border-neutral-200 bg-black">
@@ -56,7 +63,7 @@ export default function Navbar() {
                 {user.name} · {user.role}
               </span>
               <button
-                onClick={logout}
+                onClick={() => setShowLogoutModal(true)}
                 className="flex items-center gap-1 rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-neutral-200 hover:bg-neutral-800"
               >
                 <LogOut className="h-4 w-4" />
@@ -116,10 +123,7 @@ export default function Navbar() {
                   {user.name} · {user.role}
                 </span>
                 <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    logout();
-                  }}
+                  onClick={() => setShowLogoutModal(true)}
                   className="flex items-center gap-1 rounded-md border border-neutral-700 px-3 py-1.5 text-left text-sm font-medium text-neutral-200 hover:bg-neutral-800"
                 >
                   <LogOut className="h-4 w-4" />
@@ -144,6 +148,39 @@ export default function Navbar() {
                 </Link>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {showLogoutModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setShowLogoutModal(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg bg-white p-5 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-semibold text-neutral-900">
+              Log out?
+            </h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              Are you sure you want to log out of your account?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLogout}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       )}
