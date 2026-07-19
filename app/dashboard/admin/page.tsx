@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { OrderClient, OrderStatus } from "@/types";
 import StatusBadge from "@/components/ui/statusbadge";
 import { supabase, ADMIN_NOTIFICATIONS_CHANNEL } from "@/libs/supabaseClient";
-import { Bell, MapPin, Globe2 } from "lucide-react";
+import { Bell, MapPin, Globe2, MessageCircle } from "lucide-react";
 
 interface Driver {
   _id: string;
@@ -24,6 +24,21 @@ const INTERSTATE_NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; l
   picked_up: { next: "in_transit", label: "Mark In Transit" },
   in_transit: { next: "delivered", label: "Mark Delivered" },
 };
+
+// Converts a locally-formatted Nigerian number into the digits-only,
+// country-code-prefixed format wa.me links require (no +, no spaces).
+function toWhatsAppDigits(rawPhone: string): string {
+  const digits = rawPhone.replace(/\D/g, "");
+  if (digits.startsWith("234")) return digits;
+  if (digits.startsWith("0")) return `234${digits.slice(1)}`;
+  return `234${digits}`;
+}
+
+function recipientWhatsAppLink(order: OrderClient): string {
+  const message = `Hi ${order.recipientName}, a package is on its way to you via CityBike Logistics (from ${order.pickup.city} to ${order.dropoff.city}). Tracking number: #${order.trackingNumber}. You can track it anytime on our website.`;
+  const to = toWhatsAppDigits(order.recipientPhone);
+  return `https://wa.me/${to}?text=${encodeURIComponent(message)}`;
+}
 
 export default function AdminDashboard() {
   const { user, loading } = useAuth();
@@ -203,6 +218,9 @@ export default function AdminDashboard() {
                       ? `${o.customer.name} (${o.customer.phone})`
                       : "Unknown customer"}
                   </p>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    Recipient: {o.recipientName} ({o.recipientPhone})
+                  </p>
                   {o.driver && (
                     <p className="mt-1 text-sm text-neutral-500">
                       Driver: {o.driver.name}
@@ -315,6 +333,16 @@ export default function AdminDashboard() {
                     {updatingStatus === o._id ? "Updating..." : interstateNext.label}
                   </button>
                 )}
+
+                <a
+                  href={recipientWhatsAppLink(o)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  Notify Recipient on WhatsApp
+                </a>
 
                 {o.status !== "delivered" && o.status !== "cancelled" && (
                   <button

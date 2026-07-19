@@ -1,5 +1,12 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { OrderStatus } from "@/models/order";
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+// Set this once your domain is verified in Resend, e.g. "no-reply@citybikelogistics.com".
+// Until then, leave unset and the app falls back to Gmail SMTP so emails
+// keep working during development.
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
 
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = Number(process.env.SMTP_PORT ?? "");
@@ -7,7 +14,9 @@ const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const FROM_EMAIL = process.env.FROM_EMAIL || "no-reply@citybike.co";
 
-function createTransporter() {
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+
+function createSmtpTransporter() {
   if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
     throw new Error(
       "SMTP configuration is missing. Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASS in your environment."
@@ -31,7 +40,22 @@ export async function sendMail(options: {
   html: string;
   text?: string;
 }) {
-  const transporter = createTransporter();
+  // Use Resend with your verified domain once it's set up — this is the
+  // reliable, production-ready path with proper inbox delivery.
+  if (resend && RESEND_FROM_EMAIL) {
+    return resend.emails.send({
+      from: RESEND_FROM_EMAIL,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+      text: options.text,
+    });
+  }
+
+  // Fallback: Gmail SMTP. Used automatically until RESEND_FROM_EMAIL is
+  // set (i.e. until a domain is verified in Resend), so emails keep
+  // working during development without any code changes needed later.
+  const transporter = createSmtpTransporter();
   return transporter.sendMail({
     from: FROM_EMAIL,
     to: options.to,
