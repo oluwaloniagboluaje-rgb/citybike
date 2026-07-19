@@ -2,7 +2,7 @@
 
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const pickupIcon = new L.Icon({
   iconUrl:
@@ -43,6 +43,10 @@ export interface LiveMapProps {
   driverPosition?: { lat: number; lng: number } | null;
   locationHistory?: { lat: number; lng: number }[];
   heightClassName?: string;
+  // When true, skips road-routing and draws a straight line instead —
+  // appropriate for international shipments where no road route exists
+  // between the pickup and dropoff countries.
+  isInternational?: boolean;
 }
 
 // Automatically zooms/pans the map so every relevant point (pickup,
@@ -65,28 +69,81 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
+// Fetches the actual driving route between two points from OSRM's public
+// routing server, so the line drawn on the map follows real roads instead
+// of cutting a straight line through unrelated states/regions. Falls back
+// to a straight line if the request fails for any reason (network issue,
+// no road route found, rate limiting, etc).
+function useRoadRoute(
+  pickup: { lat: number; lng: number },
+  dropoff: { lat: number; lng: number },
+  enabled: boolean
+) {
+  const [routePoints, setRoutePoints] = useState<[number, number][] | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      setRoutePoints(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchRoute() {
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Routing request failed");
+        const data = await res.json();
+        const coords = data?.routes?.[0]?.geometry?.coordinates as
+          | [number, number][]
+          | undefined;
+        if (!coords || coords.length === 0) throw new Error("No route found");
+        if (!cancelled) {
+          // OSRM returns [lng, lat]; Leaflet expects [lat, lng].
+          setRoutePoints(coords.map(([lng, lat]) => [lat, lng] as [number, number]));
+        }
+      } catch {
+        if (!cancelled) setRoutePoints(null);
+      }
+    }
+
+    fetchRoute();
+    return () => {
+      cancelled = true;
+    };
+  }, [pickup.lat, pickup.lng, dropoff.lat, dropoff.lng, enabled]);
+
+  return routePoints;
+}
+
 export default function LiveMap({
   pickup,
   dropoff,
   driverPosition,
   locationHistory,
   heightClassName = "h-96",
+  isInternational = false,
 }: LiveMapProps) {
+  const roadRoute = useRoadRoute(pickup, dropoff, !isInternational);
+
   const historyPoints = locationHistory?.map(
     (point) => [point.lat, point.lng] as [number, number]
   );
 
-  const routePoints: [number, number][] = [
-    [pickup.lat, pickup.lng],
-    ...(historyPoints ?? []),
-    ...(driverPosition && !historyPoints?.length
-      ? [[driverPosition.lat, driverPosition.lng] as [number, number]]
-      : []),
-    [dropoff.lat, dropoff.lng],
-  ];
+  // The main planned route: real road geometry for domestic deliveries
+  // (once loaded), straight line for international, and a straight-line
+  // fallback for domestic if the routing request hasn't resolved yet or
+  // failed.
+  const plannedRoute: [number, number][] =
+    !isInternational && roadRoute
+      ? roadRoute
+      : [
+          [pickup.lat, pickup.lng],
+          [dropoff.lat, dropoff.lng],
+        ];
 
-  // Points used purely to calculate the initial zoom/fit — same as
-  // routePoints but without duplicating the driver marker twice.
+  // Points used purely to calculate the initial zoom/fit.
   const boundsPoints: [number, number][] = [
     [pickup.lat, pickup.lng],
     [dropoff.lat, dropoff.lng],
@@ -117,7 +174,17 @@ export default function LiveMap({
             <Popup>Driver&apos;s current location</Popup>
           </Marker>
         )}
-        <Polyline positions={routePoints} pathOptions={{ color: "#4f46e5", dashArray: "6 6" }} />
+
+        {/* Planned route: real roads for domestic, straight line for international */}
+        <Polyline
+          positions={plannedRoute}
+          pathOptions={{ color: "#4f46e5", dashArray: isInternational ? "6 6" : undefined }}
+        />
+
+        {/* Actual path the driver has traveled, if we have real GPS history */}
+        {historyPoints && historyPoints.length > 1 && (
+          <Polyline positions={historyPoints} pathOptions={{ color: "#16a34a" }} />
+        )}
       </MapContainer>
     </div>
   );

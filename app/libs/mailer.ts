@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { OrderStatus } from "@/models/order";
 
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = Number(process.env.SMTP_PORT ?? "");
@@ -93,6 +94,57 @@ export function getDriverAssignedEmail(
         <p>You have been assigned a new delivery for customer <strong>${customerName}</strong>.</p>
         <p>Tracking number: <strong>#${trackingNumber}</strong></p>
         <p>Visit your dashboard to view the order details and start the delivery.</p>
+        <p><strong>CityBike Logistics Team</strong></p>
+      </div>
+    `,
+  };
+}
+
+// Sent to the customer for interstate orders whenever an admin manually
+// updates the order status (assigned, picked up, in transit, delivered).
+// Local orders are handled entirely over WhatsApp and never use this.
+const STATUS_MESSAGES: Partial<Record<OrderStatus, { title: string; body: string }>> = {
+  assigned: {
+    title: "A driver has been assigned to your shipment",
+    body: "Your package has been assigned to one of our drivers and will be picked up shortly.",
+  },
+  picked_up: {
+    title: "Your package has been picked up",
+    body: "Your package has been picked up by our driver and is on its way to the next stage of its journey.",
+  },
+  in_transit: {
+    title: "Your package is in transit",
+    body: "Your package is currently in transit toward its destination.",
+  },
+  delivered: {
+    title: "Your package has been delivered",
+    body: "Your package has arrived and been delivered. Thank you for shipping with CityBike Logistics.",
+  },
+  cancelled: {
+    title: "Your order has been cancelled",
+    body: "Your order has been cancelled. If you believe this was a mistake, please contact us.",
+  },
+};
+
+export function getOrderStatusUpdateEmail(
+  name: string,
+  trackingNumber: string,
+  status: OrderStatus
+) {
+  const info = STATUS_MESSAGES[status] ?? {
+    title: "Your order status has been updated",
+    body: `Your order status is now: ${status}.`,
+  };
+
+  return {
+    subject: `${info.title} (#${trackingNumber})`,
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #1f2937;">
+        <h1 style="color: #f97316;">${info.title}</h1>
+        <p>Hi ${name},</p>
+        <p>${info.body}</p>
+        <p>Tracking number: <strong>#${trackingNumber}</strong></p>
+        <p>You can check the latest status anytime on our tracking page.</p>
         <p><strong>CityBike Logistics Team</strong></p>
       </div>
     `,

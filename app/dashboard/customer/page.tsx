@@ -10,6 +10,16 @@ import { Plus, MapPin, Globe2 } from "lucide-react";
 import { uploadPaymentProof } from "@/libs/uploadPaymentProof";
 import { geocodeAddress } from "@/libs/geocode";
 
+// Company WhatsApp line customers are sent to for local/interstate orders,
+// where payment is confirmed directly over chat instead of bank transfer.
+const WHATSAPP_NUMBER = "2349152661473";
+const WHATSAPP_PRICED_TYPES = new Set<ServiceType>(["local", "interstate"]);
+
+function whatsappLink(trackingNumber: string) {
+  const message = `Hi CityBike Logistics, I just placed an order. Tracking number: #${trackingNumber}. Please let me know how much to pay for this delivery.`;
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+}
+
 export default function CustomerDashboard() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -97,7 +107,7 @@ export default function CustomerDashboard() {
               </div>
               <div className="flex flex-col items-end gap-1.5">
                 <StatusBadge status={o.status} />
-                {o.price != null && (
+                {o.price != null && !WHATSAPP_PRICED_TYPES.has(o.serviceType) && (
                   <span className="text-xs font-medium text-neutral-500">
                     ₦{o.price.toLocaleString()}
                   </span>
@@ -149,6 +159,9 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
   const [uploadDone, setUploadDone] = useState(false);
 
   const isInternational = dropoffCountry.trim().toLowerCase() !== "nigeria";
+  // Local and interstate orders route to WhatsApp for payment instead of
+  // the bank transfer + proof-upload flow, and skip automatic pricing.
+  const isWhatsAppFlow = WHATSAPP_PRICED_TYPES.has(serviceType);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -193,7 +206,10 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
           weightKg: isInternational && weightKg ? parseFloat(weightKg) : undefined,
           recipientName,
           recipientPhone,
-          paymentMethod,
+          // WhatsApp-flow orders still need a valid enum value for the
+          // backend; bank_transfer is used as the underlying record even
+          // though payment is actually coordinated over WhatsApp.
+          paymentMethod: isWhatsAppFlow ? "bank_transfer" : paymentMethod,
         }),
       });
 
@@ -209,7 +225,7 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
         return;
       }
       setCreatedOrder(data.order);
-      if (paymentMethod !== "bank_transfer") {
+      if (!isWhatsAppFlow && paymentMethod !== "bank_transfer") {
         setTimeout(onCreated, 1500);
       }
     } finally {
@@ -247,52 +263,74 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
         <p className="mt-1 font-mono text-xl font-bold tracking-wide text-green-800">
           #{createdOrder.trackingNumber}
         </p>
-        {createdOrder.price != null && (
+        {!isWhatsAppFlow && createdOrder.price != null && (
           <p className="mt-1 text-sm text-neutral-700">
             Estimated cost:{" "}
             <span className="font-semibold">₦{createdOrder.price.toLocaleString()}</span>
           </p>
         )}
 
-        {createdOrder.paymentMethod === "bank_transfer" && !uploadDone && (
-          <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-left">
-            <h3 className="text-sm font-semibold text-orange-800">
-              💳 Payment Details – CityBike Logistics
+        {isWhatsAppFlow ? (
+          <div className="mt-4 rounded-lg border border-green-300 bg-white p-4 text-left">
+            <h3 className="text-sm font-semibold text-green-800">
+              Complete your order on WhatsApp
             </h3>
-            <p className="mt-1 text-sm text-orange-700">
-              Kindly make payment to:
+            <p className="mt-1 text-sm text-neutral-600">
+              Chat with us directly — we&apos;ll let you know the delivery fee
+              and confirm payment for your order there.
             </p>
-            <div className="mt-2 text-sm text-neutral-700">
-              <p><strong>Bank:</strong> Moniepoint MFB</p>
-              <p><strong>Account Name:</strong> CityBike Logistics Global Service Ltd</p>
-              <p><strong>Account Number:</strong> 5256910759</p>
-            </div>
-            <p className="mt-2 text-xs text-orange-700">
-              ✅ Please send payment confirmation after transfer to{" "}
-              <a
-                href="mailto:Citybikelogistics1@gmail.com"
-                className="underline"
-              >
-                Citybikelogistics1@gmail.com
-              </a>
-              . Thank you!
-            </p>
-
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleProofUpload(file);
-              }}
-              className="mt-3 block text-sm"
-            />
-            {uploading && (
-              <p className="mt-2 text-xs text-neutral-500">Uploading...</p>
-            )}
-            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+            <a
+              href={whatsappLink(createdOrder.trackingNumber)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setTimeout(onCreated, 500)}
+              className="mt-3 inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Continue on WhatsApp
+            </a>
           </div>
+        ) : (
+          createdOrder.paymentMethod === "bank_transfer" &&
+          !uploadDone && (
+            <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-left">
+              <h3 className="text-sm font-semibold text-orange-800">
+                💳 Payment Details – CityBike Logistics
+              </h3>
+              <p className="mt-1 text-sm text-orange-700">
+                Kindly make payment to:
+              </p>
+              <div className="mt-2 text-sm text-neutral-700">
+                <p><strong>Bank:</strong> Moniepoint MFB</p>
+                <p><strong>Account Name:</strong> CityBike Logistics Global Service Ltd</p>
+                <p><strong>Account Number:</strong> 5256910759</p>
+              </div>
+              <p className="mt-2 text-xs text-orange-700">
+                ✅ Please send payment confirmation after transfer to{" "}
+                <a
+                  href="mailto:Citybikelogistics1@gmail.com"
+                  className="underline"
+                >
+                  Citybikelogistics1@gmail.com
+                </a>
+                . Thank you!
+              </p>
+
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleProofUpload(file);
+                }}
+                className="mt-3 block text-sm"
+              />
+              {uploading && (
+                <p className="mt-2 text-xs text-neutral-500">Uploading...</p>
+              )}
+              {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+            </div>
+          )
         )}
 
         {uploadDone && (
@@ -449,23 +487,30 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
         </div>
       </div>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-neutral-700">
-          Payment Method
-        </label>
-        <select
-          value={paymentMethod}
-          onChange={(e) =>
-            setPaymentMethod(e.target.value as "bank_transfer" | "paystack")
-          }
-          className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-        >
-          <option value="bank_transfer">Bank Transfer</option>
-          <option value="paystack" disabled>
-            Card Payment (Paystack) — coming soon
-          </option>
-        </select>
-      </div>
+      {isWhatsAppFlow ? (
+        <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          No price shown here — you&apos;ll be told the delivery fee and can
+          arrange payment directly on WhatsApp after you submit.
+        </div>
+      ) : (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-neutral-700">
+            Payment Method
+          </label>
+          <select
+            value={paymentMethod}
+            onChange={(e) =>
+              setPaymentMethod(e.target.value as "bank_transfer" | "paystack")
+            }
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          >
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="paystack" disabled>
+              Card Payment (Paystack) — coming soon
+            </option>
+          </select>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

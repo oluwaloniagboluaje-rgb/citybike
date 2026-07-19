@@ -45,6 +45,10 @@ const createOrderSchema = z.object({
   paymentMethod: z.enum(["bank_transfer", "paystack"]),
 });
 
+// Service types where payment is negotiated directly on WhatsApp instead
+// of being calculated automatically — no price is computed or stored.
+const WHATSAPP_PRICED_TYPES = new Set(["local", "interstate"]);
+
 export async function GET(req: NextRequest) {
   const auth = getUserFromRequest(req);
   if (!auth) {
@@ -126,15 +130,19 @@ export async function POST(req: NextRequest) {
       dropoff.lng
     );
 
-    const price = calculatePrice({
-      distanceKm,
-      serviceType: finalServiceType,
-      packageSize,
-      weightKg,
-      pickupCountry: pickup.country,
-      dropoffCountry: dropoff.country,
-      packageDescription: parsed.data.packageDescription,
-    });
+    // Local/interstate orders skip automatic pricing entirely — payment
+    // amount is communicated directly to the customer on WhatsApp.
+    const price = WHATSAPP_PRICED_TYPES.has(finalServiceType)
+      ? undefined
+      : calculatePrice({
+          distanceKm,
+          serviceType: finalServiceType,
+          packageSize,
+          weightKg,
+          pickupCountry: pickup.country,
+          dropoffCountry: dropoff.country,
+          packageDescription: parsed.data.packageDescription,
+        });
 
     const etaMs = estimateTransitDurationMs(distanceKm, finalServiceType);
     const eta = new Date(Date.now() + etaMs);

@@ -3,7 +3,13 @@ import { connectDB } from "@/libs/mongodb";
 import Order, { OrderStatus } from "@/models/order";
 import User from "@/models/User";
 import { getUserFromRequest } from "@/libs/auth";
+import { sendMail, getOrderStatusUpdateEmail } from "@/libs/mailer";
 import { z } from "zod";
+
+// Referencing User here (even trivially) prevents production bundlers
+// from tree-shaking this import, which would otherwise silently drop
+// the mongoose.model("User", ...) registration and break populate().
+void User;
 
 const statusUpdateSchema = z.object({
   status: z.enum([
@@ -17,35 +23,9 @@ const statusUpdateSchema = z.object({
   ]),
 });
 
-function canUpdateOrderStatus(
-  auth: { userId: string; role: string },
-  order: { customer: { toString(): string }; driver?: { toString(): string } | null; status: string },
-  status: string
-) {
-  if (auth.role === "admin") return true;
-
-  if (status === "cancelled") {
-    if (
-      auth.role === "customer" &&
-      order.customer?.toString() === auth.userId &&
-      ["pending", "confirmed", "assigned"].includes(order.status)
-    ) {
-      return true;
-    }
-
-    if (
-      auth.role === "driver" &&
-      order.driver?.toString() === auth.userId &&
-      ["assigned", "picked_up", "in_transit"].includes(order.status)
-    ) {
-      return true;
-    }
-
-    return false;
-  }
-
-  return auth.role === "driver" && order.driver?.toString() === auth.userId;
-}
+// Only these roles may update order status. Adjust if customers should
+// be able to cancel their own orders, etc.
+const ALLOWED_ROLES = ["admin", "driver"];
 
 export async function POST(
   req: NextRequest,
@@ -54,6 +34,13 @@ export async function POST(
   const auth = getUserFromRequest(req);
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!ALLOWED_ROLES.includes(auth.role)) {
+    return NextResponse.json(
+      { error: "You are not permitted to update order status" },
+      { status: 403 }
+    );
   }
 
   await connectDB();
@@ -75,23 +62,10 @@ export async function POST(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  if (order.status === "cancelled") {
+  // If it's a driver, only allow them to update orders assigned to them.
+  if (auth.role === "driver" && order.driver?.toString() !== auth.userId) {
     return NextResponse.json(
-      { error: "This order is already cancelled" },
-      { status: 400 }
-    );
-  }
-
-  if (order.status === "delivered" && status === "cancelled") {
-    return NextResponse.json(
-      { error: "Delivered orders cannot be cancelled" },
-      { status: 400 }
-    );
-  }
-
-  if (!canUpdateOrderStatus(auth, order, status)) {
-    return NextResponse.json(
-      { error: "You are not permitted to update this order status" },
+      { error: "This order is not assigned to you" },
       { status: 403 }
     );
   }
@@ -104,6 +78,31 @@ export async function POST(
     .populate("customer", "name phone email")
     .populate("driver", "name phone")
     .lean();
+
+  // Interstate orders are tracked manually by the admin — every status
+  // change (assigned, picked up, in transit, delivered, cancelled) sends
+  // the customer a notification email with their tracking number. Local
+  // orders are handled entirely over WhatsApp and are never emailed here.
+  if (
+    populated?.serviceType === "interstate" &&
+    populated?.customer?.email &&
+    populated?.customer?.name
+  ) {
+    try {
+      const statusEmail = getOrderStatusUpdateEmail(
+        populated.customer.name,
+        populated.trackingNumber,
+        status as OrderStatus
+      );
+      await sendMail({
+        to: populated.customer.email,
+        subject: statusEmail.subject,
+        html: statusEmail.html,
+      });
+    } catch (mailError) {
+      console.error("Interstate status update email failed:", mailError);
+    }
+  }
 
   return NextResponse.json({ order: populated });
 }

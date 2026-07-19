@@ -15,21 +15,30 @@ export default function PublicTrackPage() {
 
   async function handleSearch(e: FormEvent) {
     e.preventDefault();
-    if (!input.trim()) return;
+    const cleaned = input.trim().replace(/[^a-zA-Z0-9]/g, "");
+    if (!cleaned) return;
     setLoading(true);
     setError("");
     setResult(null);
     setSearched(true);
     try {
-      const res = await fetch(
-        `/api/public-track/${encodeURIComponent(input.trim())}`
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Package not found");
+      const res = await fetch(`/api/public-track/${encodeURIComponent(cleaned)}`);
+
+      let data: (PublicTrackingResult & { error?: undefined }) | { error: string } | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        setError("Something went wrong while looking up this tracking number. Please try again.");
         return;
       }
-      setResult(data.result);
+
+      if (!res.ok || !data || "error" in data) {
+        setError((data && "error" in data && data.error) || "Package not found");
+        return;
+      }
+      setResult(data);
+    } catch {
+      setError("Could not reach the tracking service. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -120,6 +129,7 @@ export default function PublicTrackPage() {
             dropoff={{ ...result.dropoff, address: result.dropoff.city }}
             driverPosition={result.lastLocation}
             locationHistory={result.locationHistory}
+            isInternational={result.isInternational}
           />
 
           <div className="rounded-lg border border-neutral-200 bg-white p-5">

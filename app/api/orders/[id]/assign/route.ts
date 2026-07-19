@@ -3,7 +3,7 @@ import { connectDB } from "@/libs/mongodb";
 import Order from "@/models/order";
 import User from "@/models/User";
 import { getUserFromRequest } from "@/libs/auth";
-import { sendMail, getDriverAssignedEmail } from "@/libs/mailer";
+import { sendMail, getDriverAssignedEmail, getOrderStatusUpdateEmail } from "@/libs/mailer";
 import { z } from "zod";
 
 const assignSchema = z.object({
@@ -78,6 +78,30 @@ export async function POST(
       });
     } catch (mailError) {
       console.error("Driver assignment email failed:", mailError);
+    }
+  }
+
+  // Interstate orders are tracked manually by the admin — the customer
+  // gets a notification the moment a driver is assigned, same as every
+  // other manual status change for this service type.
+  if (
+    populated?.serviceType === "interstate" &&
+    populated?.customer?.email &&
+    populated?.customer?.name
+  ) {
+    try {
+      const statusEmail = getOrderStatusUpdateEmail(
+        populated.customer.name,
+        populated.trackingNumber,
+        "assigned"
+      );
+      await sendMail({
+        to: populated.customer.email,
+        subject: statusEmail.subject,
+        html: statusEmail.html,
+      });
+    } catch (mailError) {
+      console.error("Interstate assignment email to customer failed:", mailError);
     }
   }
 

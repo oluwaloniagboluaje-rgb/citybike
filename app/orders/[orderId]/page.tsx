@@ -212,6 +212,7 @@ export default function OrderDetailPage() {
           dropoff={order.dropoff}
           driverPosition={driverPosition}
           locationHistory={order.locationHistory}
+          isInternational={order.isInternational}
         />
         <ChatBox orderId={order._id} />
       </div>
