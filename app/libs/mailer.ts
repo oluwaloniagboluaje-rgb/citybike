@@ -205,3 +205,23 @@ export function getAdminNewOrderEmail(params: {
     `,
   };
 }
+
+export function getPasswordResetEmail(name: string, resetUrl: string) {
+  return {
+    subject: "Reset your CityBike Logistics password",
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #1f2937;">
+        <h1 style="color: #f97316;">Reset Your Password</h1>
+        <p>Hi ${name},</p>
+        <p>We received a request to reset your password. Click the button below to choose a new one:</p>
+        <p style="margin: 24px 0;">
+          <a href="${resetUrl}" style="background-color: #ea580c; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+            Reset Password
+          </a>
+        </p>
+        <p>This link will expire in 1 hour. If you didn't request this, you can safely ignore this email — your password will remain unchanged.</p>
+        <p><strong>CityBike Logistics Team</strong></p>
+      </div>
+    `,
+  };
+}

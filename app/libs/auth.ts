@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { NextRequest } from "next/server";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
@@ -48,3 +49,18 @@ export function getUserFromRequest(req: NextRequest): AppJwtPayload | null {
   if (!token) return null;
   return verifyToken(token);
 }
+
+// --- Password reset helpers ---
+// The raw token is emailed to the user and never stored; only its SHA-256
+// hash is saved in the database. This way, even if the database were
+// compromised, the actual reset tokens couldn't be reconstructed.
+
+export function generateResetToken(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+export function hashResetToken(rawToken: string): string {
+  return crypto.createHash("sha256").update(rawToken).digest("hex");
+}
+
+export const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
