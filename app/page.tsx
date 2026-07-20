@@ -10,6 +10,7 @@ import {
   Building2,
   Bike,
 } from "lucide-react";
+import ReviewsSection from "@/components/reviews/ReviewsSection";
 
 export default function Home() {
   return (
@@ -120,6 +121,8 @@ export default function Home() {
             />
           </div>
         </div>
+
+        <ReviewsSection />
 
         <div className="mt-16 flex items-center justify-center gap-2 text-sm text-neutral-500">
           <ShieldCheck className="h-4 w-4" />
