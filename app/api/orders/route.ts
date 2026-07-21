@@ -49,6 +49,13 @@ const createOrderSchema = z.object({
 // of being calculated automatically — no price is computed or stored.
 const WHATSAPP_PRICED_TYPES = new Set(["local", "interstate"]);
 
+// Interstate orders are tracked manually by the admin at every stage, so
+// an automatic ETA estimate doesn't apply — the admin communicates timing
+// directly. Local orders never had automatic ETA display either since
+// they're WhatsApp-coordinated, but ETA is still calculated/stored for
+// them today; only interstate is explicitly excluded here per request.
+const NO_AUTO_ETA_TYPES = new Set(["interstate"]);
+
 export async function GET(req: NextRequest) {
   const auth = getUserFromRequest(req);
   if (!auth) {
@@ -144,8 +151,11 @@ export async function POST(req: NextRequest) {
           packageDescription: parsed.data.packageDescription,
         });
 
-    const etaMs = estimateTransitDurationMs(distanceKm, finalServiceType);
-    const eta = new Date(Date.now() + etaMs);
+    // Interstate orders are tracked manually by the admin at every stage,
+    // so no automatic ETA is calculated or stored for them.
+    const eta = NO_AUTO_ETA_TYPES.has(finalServiceType)
+      ? undefined
+      : new Date(Date.now() + estimateTransitDurationMs(distanceKm, finalServiceType));
 
     const order = await Order.create({
       ...parsed.data,

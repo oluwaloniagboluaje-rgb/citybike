@@ -35,7 +35,8 @@ function toWhatsAppDigits(rawPhone: string): string {
 }
 
 function recipientWhatsAppLink(order: OrderClient): string {
-  const message = `Hi ${order.recipientName}, a package is on its way to you via CityBike Logistics (from ${order.pickup.city} to ${order.dropoff.city}). Tracking number: #${order.trackingNumber}. You can track it anytime on our website.`;
+  const trackingUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/track?number=${encodeURIComponent(order.trackingNumber)}`;
+  const message = `Hi ${order.recipientName}, a package is on its way to you via CityBike Logistics (from ${order.pickup.city} to ${order.dropoff.city}). Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrl}`;
   const to = toWhatsAppDigits(order.recipientPhone);
   return `https://wa.me/${to}?text=${encodeURIComponent(message)}`;
 }

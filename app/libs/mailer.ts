@@ -15,6 +15,8 @@ const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const FROM_EMAIL = process.env.FROM_EMAIL || "no-reply@citybike.co";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://citybikelogistic.com";
+
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 function createSmtpTransporter() {
@@ -66,6 +68,12 @@ export async function sendMail(options: {
   });
 }
 
+// Builds a link to the public tracking page with the tracking number
+// pre-filled, so recipients just click "Track" instead of typing it in.
+export function getTrackingUrl(trackingNumber: string): string {
+  return `${APP_URL}/track?number=${encodeURIComponent(trackingNumber)}`;
+}
+
 export function getWelcomeEmail(name: string, role: string) {
   return {
     subject: `Welcome to CityBike Logistics, ${name}!`,
@@ -88,6 +96,7 @@ export function getWelcomeEmail(name: string, role: string) {
 }
 
 export function getOrderCreatedEmail(name: string, trackingNumber: string, eta?: string) {
+  const trackingUrl = getTrackingUrl(trackingNumber);
   return {
     subject: `Your CityBike delivery is booked (#${trackingNumber})`,
     html: `
@@ -96,6 +105,11 @@ export function getOrderCreatedEmail(name: string, trackingNumber: string, eta?:
         <p>Hi ${name},</p>
         <p>Your order has been successfully created with tracking number <strong>#${trackingNumber}</strong>.</p>
         ${eta ? `<p>Estimated delivery time: <strong>${eta}</strong></p>` : ""}
+        <p style="margin: 20px 0;">
+          <a href="${trackingUrl}" style="background-color: #ea580c; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+            Track Your Package
+          </a>
+        </p>
         <p>We&apos;ll notify you again when a driver is assigned to your shipment.</p>
         <p>Thanks for choosing CityBike Logistics.</p>
         <p><strong>CityBike Logistics Team</strong></p>
@@ -110,6 +124,7 @@ export function getDriverAssignedEmail(
   trackingNumber: string,
   orderId: string
 ) {
+  const trackingUrl = getTrackingUrl(trackingNumber);
   return {
     subject: `You have been assigned a CityBike delivery (#${trackingNumber})`,
     html: `
@@ -118,6 +133,11 @@ export function getDriverAssignedEmail(
         <p>Hi ${driverName},</p>
         <p>You have been assigned a new delivery for customer <strong>${customerName}</strong>.</p>
         <p>Tracking number: <strong>#${trackingNumber}</strong></p>
+        <p style="margin: 20px 0;">
+          <a href="${trackingUrl}" style="background-color: #ea580c; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+            View Tracking Page
+          </a>
+        </p>
         <p>Visit your dashboard to view the order details and start the delivery.</p>
         <p><strong>CityBike Logistics Team</strong></p>
       </div>
@@ -160,6 +180,7 @@ export function getOrderStatusUpdateEmail(
     title: "Your order status has been updated",
     body: `Your order status is now: ${status}.`,
   };
+  const trackingUrl = getTrackingUrl(trackingNumber);
 
   return {
     subject: `${info.title} (#${trackingNumber})`,
@@ -169,7 +190,11 @@ export function getOrderStatusUpdateEmail(
         <p>Hi ${name},</p>
         <p>${info.body}</p>
         <p>Tracking number: <strong>#${trackingNumber}</strong></p>
-        <p>You can check the latest status anytime on our tracking page.</p>
+        <p style="margin: 20px 0;">
+          <a href="${trackingUrl}" style="background-color: #ea580c; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+            Track Your Package
+          </a>
+        </p>
         <p><strong>CityBike Logistics Team</strong></p>
       </div>
     `,
@@ -187,6 +212,7 @@ export function getAdminNewOrderEmail(params: {
   dropoffCity: string;
 }) {
   const { trackingNumber, customerName, serviceType, pickupCity, dropoffCity } = params;
+  const trackingUrl = getTrackingUrl(trackingNumber);
   return {
     subject: `New order received (#${trackingNumber})`,
     html: `
@@ -198,6 +224,11 @@ export function getAdminNewOrderEmail(params: {
           <strong>Customer:</strong> ${customerName}<br />
           <strong>Service type:</strong> ${serviceType}<br />
           <strong>Route:</strong> ${pickupCity} → ${dropoffCity}
+        </p>
+        <p style="margin: 20px 0;">
+          <a href="${trackingUrl}" style="background-color: #ea580c; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+            View Tracking Page
+          </a>
         </p>
         <p>Log in to the admin dashboard to confirm this order and assign a driver.</p>
         <p><strong>CityBike Logistics System</strong></p>

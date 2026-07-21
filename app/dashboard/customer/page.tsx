@@ -16,7 +16,8 @@ const WHATSAPP_NUMBER = "2349152661473";
 const WHATSAPP_PRICED_TYPES = new Set<ServiceType>(["local", "interstate"]);
 
 function whatsappLink(trackingNumber: string) {
-  const message = `Hi CityBike Logistics, I just placed an order. Tracking number: #${trackingNumber}. Please let me know how much to pay for this delivery.`;
+  const trackingUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/track?number=${encodeURIComponent(trackingNumber)}`;
+  const message = `Hi CityBike Logistics, I just placed an order. Tracking number: #${trackingNumber}. Track it here: ${trackingUrl}. Please let me know how much to pay for this delivery.`;
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 }
 

@@ -1,17 +1,37 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { Suspense, useEffect, useState, FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { PublicTrackingResult, SERVICE_TYPE_LABELS } from "@/types";
 import StatusBadge from "@/components/ui/statusbadge";
 import LiveMap from "@/components/map/livemapClient";
 import { Search, Globe2, PackageSearch } from "lucide-react";
 
 export default function PublicTrackPage() {
-  const [input, setInput] = useState("");
+  return (
+    <Suspense fallback={null}>
+      <PublicTrackPageInner />
+    </Suspense>
+  );
+}
+
+function PublicTrackPageInner() {
+  const searchParams = useSearchParams();
+  const prefill = searchParams.get("number") || "";
+
+  const [input, setInput] = useState(prefill);
   const [result, setResult] = useState<PublicTrackingResult | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  // If someone arrives via a link with ?number=..., pre-fill the box so
+  // all they have to do is click "Track" — no results shown until then.
+  useEffect(() => {
+    if (prefill) {
+      setInput(prefill);
+    }
+  }, [prefill]);
 
   async function handleSearch(e: FormEvent) {
     e.preventDefault();
