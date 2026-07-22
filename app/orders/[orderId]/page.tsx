@@ -172,7 +172,11 @@ export default function OrderDetailPage() {
         </span>
         <span className="flex items-center gap-1.5">
           <UserIcon className="h-4 w-4" />
-          Customer: {order.customer ? order.customer.name : "Unknown customer"}</span>
+          Sender: {order.customer
+            ? order.customer.name
+            : order.senderName
+            ? `${order.senderName}${order.isAdminCreated ? " (walk-in)" : ""}`
+            : "Unknown"}</span>
         {order.driver && (
           <span className="flex items-center gap-1.5">
             <Truck className="h-4 w-4" />

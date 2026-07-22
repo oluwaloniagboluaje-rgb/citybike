@@ -18,7 +18,7 @@ export type ServiceType =
   | "errand"
   | "corporate";
 
-export type PaymentMethod = "bank_transfer" | "paystack";
+export type PaymentMethod = "bank_transfer" | "paystack" | "cash";
 
 export type PaymentStatus = "pending" | "paid" | "failed";
 
@@ -32,7 +32,10 @@ export interface ILocationPoint {
 
 export interface IOrder extends Document {
   trackingNumber: string;
-  customer: Types.ObjectId;
+  customer?: Types.ObjectId;
+  senderName?: string;
+  senderPhone?: string;
+  isAdminCreated?: boolean;
   driver?: Types.ObjectId;
   pickup: ILocationPoint;
   dropoff: ILocationPoint;
@@ -81,7 +84,14 @@ const OrderSchema = new Schema<IOrder>(
     customer: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+    },
+
+    senderName: String,
+    senderPhone: String,
+
+    isAdminCreated: {
+      type: Boolean,
+      default: false,
     },
 
     driver: {
@@ -196,7 +206,7 @@ const OrderSchema = new Schema<IOrder>(
 
     paymentMethod: {
       type: String,
-      enum: ["bank_transfer", "paystack"],
+      enum: ["bank_transfer", "paystack", "cash"],
       required: true,
     },
 

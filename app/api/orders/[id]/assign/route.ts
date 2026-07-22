@@ -63,10 +63,16 @@ export async function POST(
     .populate("driver", "name phone email")
     .lean();
 
-  if (populated?.driver?.email && populated?.customer?.name) {
+  // Registered-customer orders have a customer name; walk-in orders
+  // (admin-created, no account) fall back to the sender name captured
+  // at creation time.
+  const senderDisplayName =
+    populated?.customer?.name || populated?.senderName || "a customer";
+
+  if (populated?.driver?.email) {
     try {
       const driverEmail = getDriverAssignedEmail(
-        populated.customer.name,
+        senderDisplayName,
         driver.name,
         populated.trackingNumber,
         order._id.toString()
@@ -83,7 +89,8 @@ export async function POST(
 
   // Interstate orders are tracked manually by the admin — the customer
   // gets a notification the moment a driver is assigned, same as every
-  // other manual status change for this service type.
+  // other manual status change for this service type. Walk-in orders
+  // have no customer email, so this only fires for registered customers.
   if (
     populated?.serviceType === "interstate" &&
     populated?.customer?.email &&

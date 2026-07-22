@@ -18,7 +18,7 @@ export type ServiceType =
   | "errand"
   | "corporate";
 
-export type PaymentMethod = "bank_transfer" | "paystack";
+export type PaymentMethod = "bank_transfer" | "paystack" | "cash";
 
 export type PaymentStatus = "pending" | "paid" | "failed";
 
@@ -34,6 +34,9 @@ export interface OrderClient {
   _id: string;
   trackingNumber: string;
   customer: { _id: string; name: string; phone: string; email: string } | null;
+  senderName?: string;
+  senderPhone?: string;
+  isAdminCreated?: boolean;
   driver?: { _id: string; name: string; phone: string } | null;
   pickup: LocationPoint;
   dropoff: LocationPoint;

@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { OrderClient, OrderStatus } from "@/types";
+import { OrderClient, OrderStatus, ServiceType, SERVICE_TYPE_LABELS, COUNTRY_OPTIONS } from "@/types";
 import StatusBadge from "@/components/ui/statusbadge";
 import { supabase, ADMIN_NOTIFICATIONS_CHANNEL } from "@/libs/supabaseClient";
-import { Bell, MapPin, Globe2, MessageCircle } from "lucide-react";
+import { geocodeAddress } from "@/libs/geocode";
+import { Bell, MapPin, Globe2, MessageCircle, Plus } from "lucide-react";
 
 interface Driver {
   _id: string;
@@ -17,16 +18,12 @@ interface Driver {
   isAvailable?: boolean;
 }
 
-// Ordered progression of manual status updates admins walk interstate
-// orders through after a driver has been assigned.
 const INTERSTATE_NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
   assigned: { next: "picked_up", label: "Mark Picked Up" },
   picked_up: { next: "in_transit", label: "Mark In Transit" },
   in_transit: { next: "delivered", label: "Mark Delivered" },
 };
 
-// Converts a locally-formatted Nigerian number into the digits-only,
-// country-code-prefixed format wa.me links require (no +, no spaces).
 function toWhatsAppDigits(rawPhone: string): string {
   const digits = rawPhone.replace(/\D/g, "");
   if (digits.startsWith("234")) return digits;
@@ -34,10 +31,22 @@ function toWhatsAppDigits(rawPhone: string): string {
   return `234${digits}`;
 }
 
+function trackingUrlFor(trackingNumber: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/track?number=${encodeURIComponent(trackingNumber)}`;
+}
+
 function recipientWhatsAppLink(order: OrderClient): string {
-  const trackingUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/track?number=${encodeURIComponent(order.trackingNumber)}`;
-  const message = `Hi ${order.recipientName}, a package is on its way to you via CityBike Logistics (from ${order.pickup.city} to ${order.dropoff.city}). Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrl}`;
+  const message = `Hi ${order.recipientName}, a package is on its way to you via CityBike Logistics (from ${order.pickup.city} to ${order.dropoff.city}). Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrlFor(order.trackingNumber)}`;
   const to = toWhatsAppDigits(order.recipientPhone);
+  return `https://wa.me/${to}?text=${encodeURIComponent(message)}`;
+}
+
+function senderWhatsAppLink(order: OrderClient): string {
+  const senderName = order.senderName || order.customer?.name || "there";
+  const message = `Hi ${senderName}, your CityBike Logistics order has been created. Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrlFor(order.trackingNumber)}`;
+  const phone = order.senderPhone || order.customer?.phone || "";
+  const to = toWhatsAppDigits(phone);
   return `https://wa.me/${to}?text=${encodeURIComponent(message)}`;
 }
 
@@ -51,6 +60,7 @@ export default function AdminDashboard() {
   );
   const [newOrderPing, setNewOrderPing] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
@@ -158,15 +168,33 @@ export default function AdminDashboard() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-bold text-neutral-900">Admin Dashboard</h1>
-        {newOrderPing && (
-          <span className="flex animate-pulse items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">
-            <Bell className="h-3 w-3" />
-            New order received
-          </span>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-neutral-900">Admin Dashboard</h1>
+          {newOrderPing && (
+            <span className="flex animate-pulse items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">
+              <Bell className="h-3 w-3" />
+              New order received
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => setShowCreateForm((s) => !s)}
+          className="flex items-center gap-1.5 rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+        >
+          <Plus className="h-4 w-4" />
+          Create Order for Client
+        </button>
       </div>
+
+      {showCreateForm && (
+        <AdminCreateOrderForm
+          onCreated={() => {
+            setShowCreateForm(false);
+            fetchOrders();
+          }}
+        />
+      )}
 
       <div className="mt-6 space-y-3">
         {orders.length === 0 && (
@@ -214,10 +242,12 @@ export default function AdminDashboard() {
                     </p>
                   )}
                   <p className="mt-1 text-sm text-neutral-500">
-                    Customer:{" "}
+                    Sender:{" "}
                     {o.customer
                       ? `${o.customer.name} (${o.customer.phone})`
-                      : "Unknown customer"}
+                      : o.senderName
+                      ? `${o.senderName} (${o.senderPhone}) — walk-in`
+                      : "Unknown"}
                   </p>
                   <p className="mt-1 text-sm text-neutral-500">
                     Recipient: {o.recipientName} ({o.recipientPhone})
@@ -230,6 +260,11 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
                   <StatusBadge status={o.status} />
+                  {o.isAdminCreated && (
+                    <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[11px] font-medium text-white">
+                      Walk-in
+                    </span>
+                  )}
                   {o.isInternational && (
                     <span className="flex items-center gap-1 rounded-full bg-black px-2 py-0.5 text-[11px] font-medium text-white">
                       <Globe2 className="h-3 w-3" />
@@ -239,7 +274,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {o.paymentMethod === "bank_transfer" && (
+              {(o.paymentMethod === "bank_transfer" || o.paymentMethod === "cash") && (
                 <div className="mt-3 flex items-center gap-2 border-t border-neutral-100 pt-3 text-sm">
                   <span className="text-neutral-500">Payment:</span>
                   <span
@@ -249,7 +284,11 @@ export default function AdminDashboard() {
                         : "font-medium text-yellow-700"
                     }
                   >
-                    {o.paymentStatus === "paid" ? "Paid" : "Pending"}
+                    {o.paymentStatus === "paid"
+                      ? o.paymentMethod === "cash"
+                        ? "Paid (Cash)"
+                        : "Paid"
+                      : "Pending"}
                   </span>
 
                   {o.proofOfPaymentUrl && o.paymentStatus === "pending" && (
@@ -271,10 +310,13 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  {!o.proofOfPaymentUrl && o.paymentStatus === "pending" && (
-                    <span className="text-xs text-neutral-400">
-                      Awaiting proof of payment upload
-                    </span>
+                  {!o.proofOfPaymentUrl && o.paymentStatus === "pending" && o.paymentMethod === "bank_transfer" && (
+                    <button
+                      onClick={() => markAsPaid(o._id)}
+                      className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
+                    >
+                      Mark as Paid
+                    </button>
                   )}
                 </div>
               )}
@@ -296,7 +338,7 @@ export default function AdminDashboard() {
                   </button>
                 )}
 
-                {o.status === "confirmed" && (
+                {(o.status === "confirmed" || o.status === "pending") && (
                   <>
                     <select
                       value={selectedDriver[o._id] || ""}
@@ -342,8 +384,20 @@ export default function AdminDashboard() {
                   className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
-                  Notify Recipient on WhatsApp
+                  Notify Recipient
                 </a>
+
+                {(o.senderPhone || o.customer?.phone) && (
+                  <a
+                    href={senderWhatsAppLink(o)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    Send Tracking to Sender
+                  </a>
+                )}
 
                 {o.status !== "delivered" && o.status !== "cancelled" && (
                   <button
@@ -367,5 +421,328 @@ export default function AdminDashboard() {
         })}
       </div>
     </div>
+  );
+}
+
+interface CreatedOrder {
+  _id: string;
+  trackingNumber: string;
+}
+
+function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
+  const [senderName, setSenderName] = useState("");
+  const [senderPhone, setSenderPhone] = useState("");
+  const [pickupAddress, setPickupAddress] = useState("");
+  const [pickupCity, setPickupCity] = useState("");
+  const [dropoffAddress, setDropoffAddress] = useState("");
+  const [dropoffCity, setDropoffCity] = useState("");
+  const [dropoffCountry, setDropoffCountry] = useState("Nigeria");
+  const [serviceType, setServiceType] = useState<ServiceType>("local");
+  const [packageDescription, setPackageDescription] = useState("");
+  const [packageSize, setPackageSize] = useState<"small" | "medium" | "large">("small");
+  const [weightKg, setWeightKg] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"bank_transfer" | "cash">("cash");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null);
+
+  const isInternational = dropoffCountry.trim().toLowerCase() !== "nigeria";
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      let pickupLoc, dropoffLoc;
+      try {
+        pickupLoc = await geocodeAddress(pickupAddress, pickupCity, "Nigeria");
+      } catch {
+        setError("Could not locate the pickup address. Please check it and try again.");
+        return;
+      }
+      try {
+        dropoffLoc = await geocodeAddress(dropoffAddress, dropoffCity, dropoffCountry);
+      } catch {
+        setError("Could not locate the drop-off address. Please check it and try again.");
+        return;
+      }
+
+      const res = await fetch("/api/orders/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderName,
+          senderPhone,
+          pickup: {
+            address: pickupAddress,
+            city: pickupCity,
+            country: "Nigeria",
+            lat: pickupLoc.lat,
+            lng: pickupLoc.lng,
+          },
+          dropoff: {
+            address: dropoffAddress,
+            city: dropoffCity,
+            country: dropoffCountry,
+            lat: dropoffLoc.lat,
+            lng: dropoffLoc.lng,
+          },
+          serviceType,
+          packageDescription,
+          packageSize,
+          weightKg: isInternational && weightKg ? parseFloat(weightKg) : undefined,
+          recipientName,
+          recipientPhone,
+          paymentMethod,
+        }),
+      });
+
+      let data: { error?: string; order?: CreatedOrder } = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok || !data.order) {
+        setError(data.error || "Could not create order");
+        return;
+      }
+      setCreatedOrder(data.order);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (createdOrder) {
+    const trackingUrl = trackingUrlFor(createdOrder.trackingNumber);
+    const message = `Hi ${senderName}, your CityBike Logistics order has been created. Tracking number: #${createdOrder.trackingNumber}. Track it here: ${trackingUrl}`;
+    const whatsappHref = `https://wa.me/${toWhatsAppDigits(senderPhone)}?text=${encodeURIComponent(message)}`;
+
+    return (
+      <div className="mt-4 space-y-4 rounded-lg border border-green-200 bg-green-50 p-5 text-center">
+        <p className="text-sm text-green-700">Order created! Tracking number:</p>
+        <p className="mt-1 font-mono text-xl font-bold tracking-wide text-green-800">
+          #{createdOrder.trackingNumber}
+        </p>
+        <a
+          href={whatsappHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+        >
+          <MessageCircle className="h-4 w-4" />
+          Send Tracking Number to Sender on WhatsApp
+        </a>
+        <div>
+          <button
+            onClick={onCreated}
+            className="mt-3 text-sm font-medium text-neutral-600 underline"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mt-4 space-y-4 rounded-lg border border-neutral-200 bg-white p-5"
+    >
+      <h2 className="text-sm font-semibold text-neutral-800">
+        Create Order on Behalf of a Client
+      </h2>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-neutral-700">
+          Service type
+        </label>
+        <select
+          value={serviceType}
+          onChange={(e) => setServiceType(e.target.value as ServiceType)}
+          className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+        >
+          {Object.entries(SERVICE_TYPE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-neutral-700">
+            Sender name
+          </label>
+          <input
+            required
+            value={senderName}
+            onChange={(e) => setSenderName(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-neutral-700">
+            Sender phone
+          </label>
+          <input
+            required
+            value={senderPhone}
+            onChange={(e) => setSenderPhone(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <fieldset className="space-y-2 rounded-md border border-neutral-200 p-3">
+          <legend className="px-1 text-xs font-semibold text-neutral-500">
+            PICKUP (Nigeria)
+          </legend>
+          <input
+            required
+            placeholder="Street address"
+            value={pickupAddress}
+            onChange={(e) => setPickupAddress(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          <input
+            required
+            placeholder="City (e.g. Ibadan)"
+            value={pickupCity}
+            onChange={(e) => setPickupCity(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+        </fieldset>
+
+        <fieldset className="space-y-2 rounded-md border border-neutral-200 p-3">
+          <legend className="px-1 text-xs font-semibold text-neutral-500">
+            DROP-OFF {isInternational && "(International)"}
+          </legend>
+          <input
+            required
+            placeholder="Street address"
+            value={dropoffAddress}
+            onChange={(e) => setDropoffAddress(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          <input
+            required
+            placeholder="City"
+            value={dropoffCity}
+            onChange={(e) => setDropoffCity(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          <select
+            value={dropoffCountry}
+            onChange={(e) => setDropoffCountry(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          >
+            {COUNTRY_OPTIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </fieldset>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-neutral-700">
+            Package description
+          </label>
+          <input
+            required
+            value={packageDescription}
+            onChange={(e) => setPackageDescription(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-neutral-700">
+            Package size
+          </label>
+          <select
+            value={packageSize}
+            onChange={(e) => setPackageSize(e.target.value as "small" | "medium" | "large")}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          >
+            <option value="small">Small</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large</option>
+          </select>
+        </div>
+
+        {isInternational && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Package weight (kg)
+            </label>
+            <input
+              required
+              type="number"
+              step="any"
+              min="0.1"
+              value={weightKg}
+              onChange={(e) => setWeightKg(e.target.value)}
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+          </div>
+        )}
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-neutral-700">
+            Recipient name
+          </label>
+          <input
+            required
+            value={recipientName}
+            onChange={(e) => setRecipientName(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-neutral-700">
+            Recipient phone
+          </label>
+          <input
+            required
+            value={recipientPhone}
+            onChange={(e) => setRecipientPhone(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-neutral-700">
+          Payment
+        </label>
+        <select
+          value={paymentMethod}
+          onChange={(e) => setPaymentMethod(e.target.value as "bank_transfer" | "cash")}
+          className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+        >
+          <option value="cash">Cash (received in person)</option>
+          <option value="bank_transfer">Bank Transfer</option>
+        </select>
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-60"
+      >
+        {submitting ? "Locating addresses & submitting..." : "Create Order"}
+      </button>
+    </form>
   );
 }
