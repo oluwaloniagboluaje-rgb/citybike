@@ -87,12 +87,10 @@ export async function POST(
     }
   }
 
-  // Interstate orders are tracked manually by the admin — the customer
-  // gets a notification the moment a driver is assigned, same as every
-  // other manual status change for this service type. Walk-in orders
-  // have no customer email, so this only fires for registered customers.
+  // Every order type now gets a customer email when a driver is
+  // assigned, not just interstate. Walk-in orders have no customer email
+  // on file, so this simply won't fire for them.
   if (
-    populated?.serviceType === "interstate" &&
     populated?.customer?.email &&
     populated?.customer?.name
   ) {
@@ -108,7 +106,7 @@ export async function POST(
         html: statusEmail.html,
       });
     } catch (mailError) {
-      console.error("Interstate assignment email to customer failed:", mailError);
+      console.error("Assignment email to customer failed:", mailError);
     }
   }
 

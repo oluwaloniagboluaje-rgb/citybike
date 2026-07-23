@@ -79,15 +79,11 @@ export async function POST(
     .populate("driver", "name phone")
     .lean();
 
-  // Interstate orders are tracked manually by the admin — every status
-  // change (assigned, picked up, in transit, delivered, cancelled) sends
-  // the customer a notification email with their tracking number. Local
-  // orders are handled entirely over WhatsApp and are never emailed here.
-  if (
-    populated?.serviceType === "interstate" &&
-    populated?.customer?.email &&
-    populated?.customer?.name
-  ) {
+  // Every order type now gets a customer email at each manual status
+  // update (picked up, in transit, delivered, cancelled), not just
+  // interstate. Walk-in orders have no customer email on file, so this
+  // simply won't fire for them — nothing to guard against there.
+  if (populated?.customer?.email && populated?.customer?.name) {
     try {
       const statusEmail = getOrderStatusUpdateEmail(
         populated.customer.name,
@@ -100,7 +96,7 @@ export async function POST(
         html: statusEmail.html,
       });
     } catch (mailError) {
-      console.error("Interstate status update email failed:", mailError);
+      console.error("Status update email failed:", mailError);
     }
   }
 

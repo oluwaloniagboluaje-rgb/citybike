@@ -18,7 +18,7 @@ interface Driver {
   isAvailable?: boolean;
 }
 
-const INTERSTATE_NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
+const NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
   assigned: { next: "picked_up", label: "Mark Picked Up" },
   picked_up: { next: "in_transit", label: "Mark In Transit" },
   in_transit: { next: "delivered", label: "Mark Delivered" },
@@ -203,8 +203,7 @@ export default function AdminDashboard() {
           </p>
         )}
         {orders.map((o) => {
-          const interstateNext =
-            o.serviceType === "interstate" ? INTERSTATE_NEXT_STATUS[o.status] : undefined;
+          const nextAction = NEXT_STATUS[o.status];
 
           return (
             <div key={o._id} className="rounded-lg border border-neutral-200 bg-white p-4">
@@ -321,10 +320,9 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {o.serviceType === "interstate" && (
+              {o.customer?.email && (
                 <div className="mt-3 border-t border-neutral-100 pt-3 text-xs text-neutral-500">
-                  Interstate order — customer is notified by email at every
-                  status update below.
+                  Customer is notified by email at every status update below.
                 </div>
               )}
 
@@ -367,13 +365,13 @@ export default function AdminDashboard() {
                   </>
                 )}
 
-                {interstateNext && (
+                {nextAction && (
                   <button
-                    onClick={() => advanceStatus(o._id, interstateNext.next)}
+                    onClick={() => advanceStatus(o._id, nextAction.next)}
                     disabled={updatingStatus === o._id}
                     className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
                   >
-                    {updatingStatus === o._id ? "Updating..." : interstateNext.label}
+                    {updatingStatus === o._id ? "Updating..." : nextAction.label}
                   </button>
                 )}
 

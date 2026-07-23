@@ -4,12 +4,38 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { OrderClient, SERVICE_TYPE_LABELS } from "@/types";
+import { OrderClient, OrderStatus, SERVICE_TYPE_LABELS } from "@/types";
 import StatusBadge from "@/components/ui/statusbadge";
 import LiveMap from "@/components/map/livemapClient";
 import ChatBox from "@/components/chat/chatBox";
 import { supabase, orderLocationChannel } from "@/libs/supabaseClient";
 import { ArrowLeft, Package, User as UserIcon, Truck, Globe2, Copy } from "lucide-react";
+
+// Builds a human-readable, location-aware description for each status
+// history entry, e.g. "Picked up from Ibadan" or "In transit to Lagos".
+function getTimelineDescription(
+  status: OrderStatus,
+  order: Pick<OrderClient, "pickup" | "dropoff">
+): string {
+  switch (status) {
+    case "pending":
+      return "Order placed";
+    case "confirmed":
+      return "Order confirmed by CityBike Logistics";
+    case "assigned":
+      return "Driver assigned to this delivery";
+    case "picked_up":
+      return `Picked up from ${order.pickup.city}`;
+    case "in_transit":
+      return `In transit to ${order.dropoff.city}`;
+    case "delivered":
+      return `Delivered to ${order.dropoff.city}`;
+    case "cancelled":
+      return "Order cancelled";
+    default:
+      return "Status updated";
+  }
+}
 
 export default function OrderDetailPage() {
   const { user, loading } = useAuth();
@@ -172,11 +198,13 @@ export default function OrderDetailPage() {
         </span>
         <span className="flex items-center gap-1.5">
           <UserIcon className="h-4 w-4" />
-          Sender: {order.customer
+          Sender:{" "}
+          {order.customer
             ? order.customer.name
             : order.senderName
             ? `${order.senderName}${order.isAdminCreated ? " (walk-in)" : ""}`
-            : "Unknown"}</span>
+            : "Unknown"}
+        </span>
         {order.driver && (
           <span className="flex items-center gap-1.5">
             <Truck className="h-4 w-4" />
@@ -222,17 +250,31 @@ export default function OrderDetailPage() {
       </div>
 
       <div className="mt-6 rounded-lg border border-neutral-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-neutral-700">Status History</h2>
-        <ol className="space-y-2">
-          {order.statusHistory.map((h, i) => (
-            <li key={i} className="flex items-center gap-2 text-sm text-neutral-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-              <StatusBadge status={h.status} />
-              <span className="text-neutral-400">
-                {new Date(h.at).toLocaleString()}
-              </span>
-            </li>
-          ))}
+        <h2 className="mb-4 text-sm font-semibold text-neutral-700">
+          Tracking Timeline
+        </h2>
+        <ol className="relative space-y-6 border-l-2 border-neutral-200 pl-5">
+          {order.statusHistory.map((h, i) => {
+            const isLast = i === order.statusHistory.length - 1;
+            return (
+              <li key={i} className="relative">
+                <span
+                  className={`absolute -left-[27px] top-0.5 h-3 w-3 rounded-full border-2 border-white ${
+                    isLast ? "bg-orange-500" : "bg-neutral-300"
+                  }`}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={h.status} />
+                  <span className="text-xs text-neutral-400">
+                    {new Date(h.at).toLocaleString()}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-neutral-700">
+                  {getTimelineDescription(h.status, order)}
+                </p>
+              </li>
+            );
+          })}
         </ol>
       </div>
     </div>
