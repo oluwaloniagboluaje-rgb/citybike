@@ -56,6 +56,8 @@ export interface IOrder extends Document {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   proofOfPaymentUrl?: string;
+  pickupPhotoUrl?: string;
+  deliveryPhotoUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -217,6 +219,9 @@ const OrderSchema = new Schema<IOrder>(
     },
 
     proofOfPaymentUrl: String,
+
+    pickupPhotoUrl: String,
+    deliveryPhotoUrl: String,
   },
   {
     timestamps: true,

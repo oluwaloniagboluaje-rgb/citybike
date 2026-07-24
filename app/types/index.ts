@@ -57,6 +57,8 @@ export interface OrderClient {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   proofOfPaymentUrl?: string;
+  pickupPhotoUrl?: string;
+  deliveryPhotoUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -249,6 +249,44 @@ export default function OrderDetailPage() {
         <ChatBox orderId={order._id} />
       </div>
 
+      {(order.pickupPhotoUrl || order.deliveryPhotoUrl) && (
+        <div className="mt-6 rounded-lg border border-neutral-200 bg-white p-4">
+          <h2 className="mb-4 text-sm font-semibold text-neutral-700">
+            Package Photos
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {order.pickupPhotoUrl && (
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-neutral-500">
+                  At pickup
+                </p>
+                <a href={order.pickupPhotoUrl} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={order.pickupPhotoUrl}
+                    alt="Package at pickup"
+                    className="w-full rounded-md border border-neutral-200 object-cover"
+                  />
+                </a>
+              </div>
+            )}
+            {order.deliveryPhotoUrl && (
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-neutral-500">
+                  At delivery
+                </p>
+                <a href={order.deliveryPhotoUrl} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={order.deliveryPhotoUrl}
+                    alt="Package at delivery"
+                    className="w-full rounded-md border border-neutral-200 object-cover"
+                  />
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 rounded-lg border border-neutral-200 bg-white p-4">
         <h2 className="mb-4 text-sm font-semibold text-neutral-700">
           Tracking Timeline

@@ -7,7 +7,9 @@ import { useAuth } from "@/context/AuthContext";
 import { OrderClient, OrderStatus } from "@/types";
 import StatusBadge from "@/components/ui/statusbadge";
 import { supabase, driverNotificationChannel, orderLocationChannel } from "@/libs/supabaseClient";
-import { Bell, MapPin, Navigation, Globe2 } from "lucide-react";
+import { uploadPackagePhoto } from "@/libs/uploadPackagePhoto";
+import { groupByDate } from "@/libs/dateGroups";
+import { Bell, MapPin, Navigation, Globe2, Camera, Check } from "lucide-react";
 
 const NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
   assigned: { next: "picked_up", label: "Mark Picked Up" },
@@ -21,7 +23,11 @@ export default function DriverDashboard() {
   const [orders, setOrders] = useState<OrderClient[]>([]);
   const [newAssignmentPing, setNewAssignmentPing] = useState(false);
   const [sharingLocationFor, setSharingLocationFor] = useState<string | null>(null);
+  const [uploadingPhotoFor, setUploadingPhotoFor] = useState<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const pickupFileInputRef = useRef<HTMLInputElement | null>(null);
+  const deliveryFileInputRef = useRef<HTMLInputElement | null>(null);
+  const activeOrderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "driver")) {
@@ -103,10 +109,68 @@ export default function DriverDashboard() {
     setSharingLocationFor(null);
   }
 
+  function triggerPickupPhoto(orderId: string) {
+    activeOrderIdRef.current = orderId;
+    pickupFileInputRef.current?.click();
+  }
+
+  function triggerDeliveryPhoto(orderId: string) {
+    activeOrderIdRef.current = orderId;
+    deliveryFileInputRef.current?.click();
+  }
+
+  async function handlePhotoSelected(
+    e: React.ChangeEvent<HTMLInputElement>,
+    stage: "pickup" | "delivery"
+  ) {
+    const file = e.target.files?.[0];
+    const orderId = activeOrderIdRef.current;
+    e.target.value = "";
+    if (!file || !orderId) return;
+
+    setUploadingPhotoFor(orderId);
+    try {
+      const photoUrl = await uploadPackagePhoto(orderId, stage, file);
+      const res = await fetch(`/api/orders/${orderId}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage, photoUrl }),
+      });
+      if (res.ok) {
+        fetchOrders();
+      } else {
+        alert("Could not save the photo. Please try again.");
+      }
+    } catch {
+      alert("Photo upload failed. Please try again.");
+    } finally {
+      setUploadingPhotoFor(null);
+    }
+  }
+
   if (loading || !user) return null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
+      {/* Hidden file inputs, reused across all order cards. capture="environment"
+          opens the rear camera directly on mobile devices. */}
+      <input
+        ref={pickupFileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => handlePhotoSelected(e, "pickup")}
+      />
+      <input
+        ref={deliveryFileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => handlePhotoSelected(e, "delivery")}
+      />
+
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-bold text-neutral-900">My Deliveries</h1>
         {newAssignmentPing && (
@@ -117,21 +181,28 @@ export default function DriverDashboard() {
         )}
       </div>
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-6 space-y-6">
         {orders.length === 0 && (
           <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
             No deliveries assigned to you yet.
           </p>
         )}
-        {orders.map((o) => {
-          const nextAction = NEXT_STATUS[o.status];
-          const isSharing = sharingLocationFor === o._id;
-          const canShareLocation = ["assigned", "picked_up", "in_transit"].includes(o.status);
-          const senderLabel = o.customer
-            ? `${o.customer.name} (${o.customer.phone})`
-            : o.senderName
-            ? `${o.senderName} (${o.senderPhone})`
-            : null;
+        {groupByDate(orders).map((group) => (
+          <div key={group.label}>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              {group.label}
+            </h2>
+            <div className="space-y-3">
+              {group.items.map((o) => {
+                const nextAction = NEXT_STATUS[o.status];
+                const isSharing = sharingLocationFor === o._id;
+                const canShareLocation = ["assigned", "picked_up", "in_transit"].includes(o.status);
+                const isUploadingThis = uploadingPhotoFor === o._id;
+                const senderLabel = o.customer
+                  ? `${o.customer.name} (${o.customer.phone})`
+                  : o.senderName
+                  ? `${o.senderName} (${o.senderPhone})`
+                  : null;
 
           return (
             <div key={o._id} className="rounded-lg border border-neutral-200 bg-white p-4">
@@ -205,6 +276,44 @@ export default function DriverDashboard() {
                   </button>
                 )}
 
+                {["assigned"].includes(o.status) && (
+                  <button
+                    onClick={() => triggerPickupPhoto(o._id)}
+                    disabled={isUploadingThis}
+                    className="flex items-center gap-1 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    {o.pickupPhotoUrl ? (
+                      <Check className="h-3.5 w-3.5 text-green-600" />
+                    ) : (
+                      <Camera className="h-3.5 w-3.5" />
+                    )}
+                    {isUploadingThis
+                      ? "Uploading..."
+                      : o.pickupPhotoUrl
+                      ? "Retake Pickup Photo"
+                      : "Take Pickup Photo"}
+                  </button>
+                )}
+
+                {["picked_up", "in_transit"].includes(o.status) && (
+                  <button
+                    onClick={() => triggerDeliveryPhoto(o._id)}
+                    disabled={isUploadingThis}
+                    className="flex items-center gap-1 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    {o.deliveryPhotoUrl ? (
+                      <Check className="h-3.5 w-3.5 text-green-600" />
+                    ) : (
+                      <Camera className="h-3.5 w-3.5" />
+                    )}
+                    {isUploadingThis
+                      ? "Uploading..."
+                      : o.deliveryPhotoUrl
+                      ? "Retake Delivery Photo"
+                      : "Take Delivery Photo"}
+                  </button>
+                )}
+
                 <Link
                   href={`/orders/${o._id}`}
                   className="ml-auto rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
@@ -214,7 +323,10 @@ export default function DriverDashboard() {
               </div>
             </div>
           );
-        })}
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

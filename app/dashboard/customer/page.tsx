@@ -9,6 +9,7 @@ import StatusBadge from "@/components/ui/statusbadge";
 import { Plus, MapPin, Globe2 } from "lucide-react";
 import { uploadPaymentProof } from "@/libs/uploadPaymentProof";
 import { geocodeAddress } from "@/libs/geocode";
+import { groupByDate } from "@/libs/dateGroups";
 
 // Company WhatsApp line customers are sent to for local/interstate orders,
 // where payment is confirmed directly over chat instead of bank transfer.
@@ -70,58 +71,67 @@ export default function CustomerDashboard() {
         />
       )}
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-6 space-y-6">
         {orders.length === 0 && (
           <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
             No orders yet. Create your first delivery request.
           </p>
         )}
-        {orders.map((o) => (
-          <Link
-            key={o._id}
-            href={`/orders/${o._id}`}
-            className="block rounded-lg border border-neutral-200 bg-white p-4 hover:border-orange-300"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-mono text-xs font-semibold tracking-wide text-neutral-500">
-                  #{o.trackingNumber}
-                </p>
-                <p className="mt-0.5 font-medium text-neutral-900">
-                  {o.packageDescription}
-                </p>
-                <p className="mt-1 flex items-center gap-1 text-sm text-neutral-500">
-                  <MapPin className="h-3.5 w-3.5" />
-                  {o.pickup.city} → {o.dropoff.city}
-                  {o.isInternational ? `, ${o.dropoff.country}` : ""}
-                </p>
-                {o.driver && (
-                  <p className="mt-1 text-sm text-neutral-500">
-                    Driver: {o.driver.name}
-                  </p>
-                )}
-                {o.eta && (
-                  <p className="mt-1 text-sm text-neutral-500">
-                    ETA: {new Date(o.eta).toLocaleString()}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-col items-end gap-1.5">
-                <StatusBadge status={o.status} />
-                {o.price != null && !WHATSAPP_PRICED_TYPES.has(o.serviceType) && (
-                  <span className="text-xs font-medium text-neutral-500">
-                    ₦{o.price.toLocaleString()}
-                  </span>
-                )}
-                {o.isInternational && (
-                  <span className="flex items-center gap-1 rounded-full bg-black px-2 py-0.5 text-[11px] font-medium text-white">
-                    <Globe2 className="h-3 w-3" />
-                    Intl
-                  </span>
-                )}
-              </div>
+        {groupByDate(orders).map((group) => (
+          <div key={group.label}>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              {group.label}
+            </h2>
+            <div className="space-y-3">
+              {group.items.map((o) => (
+                <Link
+                  key={o._id}
+                  href={`/orders/${o._id}`}
+                  className="block rounded-lg border border-neutral-200 bg-white p-4 hover:border-orange-300"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-mono text-xs font-semibold tracking-wide text-neutral-500">
+                        #{o.trackingNumber}
+                      </p>
+                      <p className="mt-0.5 font-medium text-neutral-900">
+                        {o.packageDescription}
+                      </p>
+                      <p className="mt-1 flex items-center gap-1 text-sm text-neutral-500">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {o.pickup.city} → {o.dropoff.city}
+                        {o.isInternational ? `, ${o.dropoff.country}` : ""}
+                      </p>
+                      {o.driver && (
+                        <p className="mt-1 text-sm text-neutral-500">
+                          Driver: {o.driver.name}
+                        </p>
+                      )}
+                      {o.eta && (
+                        <p className="mt-1 text-sm text-neutral-500">
+                          ETA: {new Date(o.eta).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <StatusBadge status={o.status} />
+                      {o.price != null && !WHATSAPP_PRICED_TYPES.has(o.serviceType) && (
+                        <span className="text-xs font-medium text-neutral-500">
+                          ₦{o.price.toLocaleString()}
+                        </span>
+                      )}
+                      {o.isInternational && (
+                        <span className="flex items-center gap-1 rounded-full bg-black px-2 py-0.5 text-[11px] font-medium text-white">
+                          <Globe2 className="h-3 w-3" />
+                          Intl
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
-          </Link>
+          </div>
         ))}
       </div>
     </div>

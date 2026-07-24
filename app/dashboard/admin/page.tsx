@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { OrderClient, OrderStatus, ServiceType, SERVICE_TYPE_LABELS, COUNTRY_OPTIONS } from "@/types";
+import { OrderClient, OrderStatus, ServiceType, SERVICE_TYPE_LABELS, STATUS_LABELS, COUNTRY_OPTIONS } from "@/types";
 import StatusBadge from "@/components/ui/statusbadge";
 import { supabase, ADMIN_NOTIFICATIONS_CHANNEL } from "@/libs/supabaseClient";
 import { geocodeAddress } from "@/libs/geocode";
+import { groupByDate } from "@/libs/dateGroups";
 import { Bell, MapPin, Globe2, MessageCircle, Plus } from "lucide-react";
 
 interface Driver {
@@ -36,15 +37,45 @@ function trackingUrlFor(trackingNumber: string): string {
   return `${origin}/track?number=${encodeURIComponent(trackingNumber)}`;
 }
 
+// Short, WhatsApp-friendly description of the order's current stage, used
+// to keep the sender/recipient notification messages accurate to whatever
+// status the admin most recently set — this is how walk-in clients (who
+// have no account and can't receive email/dashboard updates) stay
+// informed of pickup, transit, and delivery progress.
+function statusMessageFor(order: OrderClient): string {
+  switch (order.status) {
+    case "pending":
+      return "Your order has been received and is awaiting confirmation.";
+    case "confirmed":
+      return "Your order has been confirmed.";
+    case "assigned":
+      return "A driver has been assigned and will pick up the package shortly.";
+    case "picked_up":
+      return `Your package has been picked up from ${order.pickup.city}.`;
+    case "in_transit":
+      return `Your package is in transit to ${order.dropoff.city}.`;
+    case "delivered":
+      return `Your package has been delivered to ${order.dropoff.city}.`;
+    case "cancelled":
+      return "Your order has been cancelled.";
+    default:
+      return "Your order status has been updated.";
+  }
+}
+
 function recipientWhatsAppLink(order: OrderClient): string {
-  const message = `Hi ${order.recipientName}, a package is on its way to you via CityBike Logistics (from ${order.pickup.city} to ${order.dropoff.city}). Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrlFor(order.trackingNumber)}`;
+  const message = `Hi ${order.recipientName}, this is CityBike Logistics with an update on your delivery. ${statusMessageFor(
+    order
+  )} Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrlFor(order.trackingNumber)}`;
   const to = toWhatsAppDigits(order.recipientPhone);
   return `https://wa.me/${to}?text=${encodeURIComponent(message)}`;
 }
 
 function senderWhatsAppLink(order: OrderClient): string {
   const senderName = order.senderName || order.customer?.name || "there";
-  const message = `Hi ${senderName}, your CityBike Logistics order has been created. Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrlFor(order.trackingNumber)}`;
+  const message = `Hi ${senderName}, this is CityBike Logistics with an update on your order. ${statusMessageFor(
+    order
+  )} Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrlFor(order.trackingNumber)}`;
   const phone = order.senderPhone || order.customer?.phone || "";
   const to = toWhatsAppDigits(phone);
   return `https://wa.me/${to}?text=${encodeURIComponent(message)}`;
@@ -196,16 +227,22 @@ export default function AdminDashboard() {
         />
       )}
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-6 space-y-6">
         {orders.length === 0 && (
           <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
             No orders yet.
           </p>
         )}
-        {orders.map((o) => {
-          const nextAction = NEXT_STATUS[o.status];
+        {groupByDate(orders).map((group) => (
+          <div key={group.label}>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              {group.label}
+            </h2>
+            <div className="space-y-3">
+              {group.items.map((o) => {
+                const nextAction = NEXT_STATUS[o.status];
 
-          return (
+                return (
             <div key={o._id} className="rounded-lg border border-neutral-200 bg-white p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -382,7 +419,7 @@ export default function AdminDashboard() {
                   className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
-                  Notify Recipient
+                  Notify Recipient ({STATUS_LABELS[o.status]})
                 </a>
 
                 {(o.senderPhone || o.customer?.phone) && (
@@ -393,7 +430,7 @@ export default function AdminDashboard() {
                     className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
                   >
                     <MessageCircle className="h-3.5 w-3.5" />
-                    Send Tracking to Sender
+                    Notify Sender ({STATUS_LABELS[o.status]})
                   </a>
                 )}
 
@@ -415,8 +452,11 @@ export default function AdminDashboard() {
               </div>
 
             </div>
-          );
-        })}
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
