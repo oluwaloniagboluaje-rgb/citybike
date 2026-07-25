@@ -271,7 +271,6 @@ export default function AdminDashboard() {
         ref={pickupFileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={(e) => handlePhotoSelected(e, "pickup")}
       />
@@ -279,7 +278,6 @@ export default function AdminDashboard() {
         ref={deliveryFileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={(e) => handlePhotoSelected(e, "delivery")}
       />
@@ -539,8 +537,8 @@ export default function AdminDashboard() {
                   {isUploadingThis
                     ? "Uploading..."
                     : o.pickupPhotoUrl
-                    ? "Retake Pickup Photo"
-                    : "Take Pickup Photo"}
+                    ? "Replace Pickup Photo"
+                    : "Upload Pickup Photo"}
                 </button>
 
                 <button
@@ -556,8 +554,8 @@ export default function AdminDashboard() {
                   {isUploadingThis
                     ? "Uploading..."
                     : o.deliveryPhotoUrl
-                    ? "Retake Delivery Photo"
-                    : "Take Delivery Photo"}
+                    ? "Replace Delivery Photo"
+                    : "Upload Delivery Photo"}
                 </button>
 
                 {o.status !== "delivered" && o.status !== "cancelled" && (
