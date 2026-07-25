@@ -9,7 +9,8 @@ import StatusBadge from "@/components/ui/statusbadge";
 import { Plus, MapPin, Globe2 } from "lucide-react";
 import { uploadPaymentProof } from "@/libs/uploadPaymentProof";
 import { geocodeAddress } from "@/libs/geocode";
-import { groupByDate } from "@/libs/dateGroups";
+import { groupByDate, filterOrdersByDate, DateFilterValue } from "@/libs/dateGroups";
+import OrderDateFilter from "@/components/orders/OrderDateFilter";
 
 // Company WhatsApp line customers are sent to for local/interstate orders,
 // where payment is confirmed directly over chat instead of bank transfer.
@@ -27,6 +28,7 @@ export default function CustomerDashboard() {
   const router = useRouter();
   const [orders, setOrders] = useState<OrderClient[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>("today");
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "customer")) {
@@ -71,13 +73,20 @@ export default function CustomerDashboard() {
         />
       )}
 
-      <div className="mt-6 space-y-6">
+      <OrderDateFilter value={dateFilter} onChange={setDateFilter} />
+
+      <div className="mt-2 space-y-6">
         {orders.length === 0 && (
           <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
             No orders yet. Create your first delivery request.
           </p>
         )}
-        {groupByDate(orders).map((group) => (
+        {orders.length > 0 && filterOrdersByDate(orders, dateFilter).length === 0 && (
+          <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
+            No orders for this day.
+          </p>
+        )}
+        {groupByDate(filterOrdersByDate(orders, dateFilter)).map((group) => (
           <div key={group.label}>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
               {group.label}

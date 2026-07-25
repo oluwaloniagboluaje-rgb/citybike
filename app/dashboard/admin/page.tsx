@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -8,8 +8,11 @@ import { OrderClient, OrderStatus, ServiceType, SERVICE_TYPE_LABELS, STATUS_LABE
 import StatusBadge from "@/components/ui/statusbadge";
 import { supabase, ADMIN_NOTIFICATIONS_CHANNEL } from "@/libs/supabaseClient";
 import { geocodeAddress } from "@/libs/geocode";
-import { groupByDate } from "@/libs/dateGroups";
-import { Bell, MapPin, Globe2, MessageCircle, Plus } from "lucide-react";
+import { uploadPackagePhoto } from "@/libs/uploadPackagePhoto";
+import { groupByDate, filterOrdersByDate, DateFilterValue } from "@/libs/dateGroups";
+import OrderDateFilter from "@/components/orders/OrderDateFilter";
+import StatusModal, { StatusModalState, CLOSED_MODAL } from "@/components/ui/StatusModal";
+import { Bell, MapPin, Globe2, MessageCircle, Plus, Camera, Check } from "lucide-react";
 
 interface Driver {
   _id: string;
@@ -92,6 +95,12 @@ export default function AdminDashboard() {
   const [newOrderPing, setNewOrderPing] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>("today");
+  const [uploadingPhotoFor, setUploadingPhotoFor] = useState<string | null>(null);
+  const [modal, setModal] = useState<StatusModalState>(CLOSED_MODAL);
+  const pickupFileInputRef = useRef<HTMLInputElement | null>(null);
+  const deliveryFileInputRef = useRef<HTMLInputElement | null>(null);
+  const activeOrderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
@@ -195,10 +204,85 @@ export default function AdminDashboard() {
     if (res.ok) fetchOrders();
   }
 
+  function triggerPickupPhoto(orderId: string) {
+    activeOrderIdRef.current = orderId;
+    pickupFileInputRef.current?.click();
+  }
+
+  function triggerDeliveryPhoto(orderId: string) {
+    activeOrderIdRef.current = orderId;
+    deliveryFileInputRef.current?.click();
+  }
+
+  async function handlePhotoSelected(
+    e: React.ChangeEvent<HTMLInputElement>,
+    stage: "pickup" | "delivery"
+  ) {
+    const file = e.target.files?.[0];
+    const orderId = activeOrderIdRef.current;
+    e.target.value = "";
+    if (!file || !orderId) return;
+
+    setUploadingPhotoFor(orderId);
+    try {
+      const photoUrl = await uploadPackagePhoto(orderId, stage, file);
+      const res = await fetch(`/api/orders/${orderId}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage, photoUrl }),
+      });
+      if (res.ok) {
+        fetchOrders();
+        setModal({
+          open: true,
+          variant: "success",
+          title: "Photo saved",
+          message: `The ${stage} photo was uploaded successfully.`,
+        });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setModal({
+          open: true,
+          variant: "error",
+          title: "Could not save photo",
+          message: data.error || "The photo uploaded but could not be saved to the order. Please try again.",
+        });
+      }
+    } catch (err) {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Upload failed",
+        message:
+          err instanceof Error
+            ? err.message
+            : "The photo could not be uploaded. Please check your connection and try again.",
+      });
+    } finally {
+      setUploadingPhotoFor(null);
+    }
+  }
+
   if (loading || !user) return null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
+      <input
+        ref={pickupFileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => handlePhotoSelected(e, "pickup")}
+      />
+      <input
+        ref={deliveryFileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => handlePhotoSelected(e, "delivery")}
+      />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold text-neutral-900">Admin Dashboard</h1>
@@ -227,13 +311,20 @@ export default function AdminDashboard() {
         />
       )}
 
-      <div className="mt-6 space-y-6">
+      <OrderDateFilter value={dateFilter} onChange={setDateFilter} />
+
+      <div className="mt-2 space-y-6">
         {orders.length === 0 && (
           <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
             No orders yet.
           </p>
         )}
-        {groupByDate(orders).map((group) => (
+        {orders.length > 0 && filterOrdersByDate(orders, dateFilter).length === 0 && (
+          <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
+            No orders for this day.
+          </p>
+        )}
+        {groupByDate(filterOrdersByDate(orders, dateFilter)).map((group) => (
           <div key={group.label}>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
               {group.label}
@@ -241,6 +332,7 @@ export default function AdminDashboard() {
             <div className="space-y-3">
               {group.items.map((o) => {
                 const nextAction = NEXT_STATUS[o.status];
+                const isUploadingThis = uploadingPhotoFor === o._id;
 
                 return (
             <div key={o._id} className="rounded-lg border border-neutral-200 bg-white p-4">
@@ -434,6 +526,40 @@ export default function AdminDashboard() {
                   </a>
                 )}
 
+                <button
+                  onClick={() => triggerPickupPhoto(o._id)}
+                  disabled={isUploadingThis}
+                  className="flex items-center gap-1 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  {o.pickupPhotoUrl ? (
+                    <Check className="h-3.5 w-3.5 text-green-600" />
+                  ) : (
+                    <Camera className="h-3.5 w-3.5" />
+                  )}
+                  {isUploadingThis
+                    ? "Uploading..."
+                    : o.pickupPhotoUrl
+                    ? "Retake Pickup Photo"
+                    : "Take Pickup Photo"}
+                </button>
+
+                <button
+                  onClick={() => triggerDeliveryPhoto(o._id)}
+                  disabled={isUploadingThis}
+                  className="flex items-center gap-1 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  {o.deliveryPhotoUrl ? (
+                    <Check className="h-3.5 w-3.5 text-green-600" />
+                  ) : (
+                    <Camera className="h-3.5 w-3.5" />
+                  )}
+                  {isUploadingThis
+                    ? "Uploading..."
+                    : o.deliveryPhotoUrl
+                    ? "Retake Delivery Photo"
+                    : "Take Delivery Photo"}
+                </button>
+
                 {o.status !== "delivered" && o.status !== "cancelled" && (
                   <button
                     onClick={() => cancelOrder(o._id)}
@@ -458,6 +584,8 @@ export default function AdminDashboard() {
           </div>
         ))}
       </div>
+
+      <StatusModal state={modal} onClose={() => setModal(CLOSED_MODAL)} />
     </div>
   );
 }

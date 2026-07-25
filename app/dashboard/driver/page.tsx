@@ -8,7 +8,9 @@ import { OrderClient, OrderStatus } from "@/types";
 import StatusBadge from "@/components/ui/statusbadge";
 import { supabase, driverNotificationChannel, orderLocationChannel } from "@/libs/supabaseClient";
 import { uploadPackagePhoto } from "@/libs/uploadPackagePhoto";
-import { groupByDate } from "@/libs/dateGroups";
+import { groupByDate, filterOrdersByDate, DateFilterValue } from "@/libs/dateGroups";
+import OrderDateFilter from "@/components/orders/OrderDateFilter";
+import StatusModal, { StatusModalState, CLOSED_MODAL } from "@/components/ui/StatusModal";
 import { Bell, MapPin, Navigation, Globe2, Camera, Check } from "lucide-react";
 
 const NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
@@ -24,6 +26,8 @@ export default function DriverDashboard() {
   const [newAssignmentPing, setNewAssignmentPing] = useState(false);
   const [sharingLocationFor, setSharingLocationFor] = useState<string | null>(null);
   const [uploadingPhotoFor, setUploadingPhotoFor] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>("today");
+  const [modal, setModal] = useState<StatusModalState>(CLOSED_MODAL);
   const watchIdRef = useRef<number | null>(null);
   const pickupFileInputRef = useRef<HTMLInputElement | null>(null);
   const deliveryFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -78,7 +82,12 @@ export default function DriverDashboard() {
 
   function startSharingLocation(orderId: string) {
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported in this browser.");
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Location not supported",
+        message: "Geolocation is not supported in this browser.",
+      });
       return;
     }
     setSharingLocationFor(orderId);
@@ -138,11 +147,31 @@ export default function DriverDashboard() {
       });
       if (res.ok) {
         fetchOrders();
+        setModal({
+          open: true,
+          variant: "success",
+          title: "Photo saved",
+          message: `The ${stage} photo was uploaded successfully.`,
+        });
       } else {
-        alert("Could not save the photo. Please try again.");
+        const data = await res.json().catch(() => ({}));
+        setModal({
+          open: true,
+          variant: "error",
+          title: "Could not save photo",
+          message: data.error || "The photo uploaded but could not be saved to the order. Please try again.",
+        });
       }
-    } catch {
-      alert("Photo upload failed. Please try again.");
+    } catch (err) {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Upload failed",
+        message:
+          err instanceof Error
+            ? err.message
+            : "The photo could not be uploaded. Please check your connection and try again.",
+      });
     } finally {
       setUploadingPhotoFor(null);
     }
@@ -181,13 +210,20 @@ export default function DriverDashboard() {
         )}
       </div>
 
-      <div className="mt-6 space-y-6">
+      <OrderDateFilter value={dateFilter} onChange={setDateFilter} />
+
+      <div className="mt-2 space-y-6">
         {orders.length === 0 && (
           <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
             No deliveries assigned to you yet.
           </p>
         )}
-        {groupByDate(orders).map((group) => (
+        {orders.length > 0 && filterOrdersByDate(orders, dateFilter).length === 0 && (
+          <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
+            No deliveries for this day.
+          </p>
+        )}
+        {groupByDate(filterOrdersByDate(orders, dateFilter)).map((group) => (
           <div key={group.label}>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
               {group.label}
@@ -328,6 +364,8 @@ export default function DriverDashboard() {
           </div>
         ))}
       </div>
+
+      <StatusModal state={modal} onClose={() => setModal(CLOSED_MODAL)} />
     </div>
   );
 }
