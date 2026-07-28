@@ -98,6 +98,12 @@ export default function AdminDashboard() {
   const [dateFilter, setDateFilter] = useState<DateFilterValue>("today");
   const [uploadingPhotoFor, setUploadingPhotoFor] = useState<string | null>(null);
   const [modal, setModal] = useState<StatusModalState>(CLOSED_MODAL);
+  const [carrierTrackingInputs, setCarrierTrackingInputs] = useState<Record<string, string>>(
+    {}
+  );
+  const [savingCarrierTrackingFor, setSavingCarrierTrackingFor] = useState<string | null>(
+    null
+  );
   const pickupFileInputRef = useRef<HTMLInputElement | null>(null);
   const deliveryFileInputRef = useRef<HTMLInputElement | null>(null);
   const activeOrderIdRef = useRef<string | null>(null);
@@ -263,6 +269,39 @@ export default function AdminDashboard() {
     }
   }
 
+  async function saveCarrierTracking(orderId: string) {
+    const value = carrierTrackingInputs[orderId]?.trim();
+    if (!value) return;
+
+    setSavingCarrierTrackingFor(orderId);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/carrier-tracking`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ externalTrackingNumber: value, carrierName: "DHL" }),
+      });
+      if (res.ok) {
+        fetchOrders();
+        setModal({
+          open: true,
+          variant: "success",
+          title: "DHL tracking number saved",
+          message: "This is stored for internal reference only and is never shown to the customer.",
+        });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setModal({
+          open: true,
+          variant: "error",
+          title: "Could not save",
+          message: data.error || "Please try again.",
+        });
+      }
+    } finally {
+      setSavingCarrierTrackingFor(null);
+    }
+  }
+
   if (loading || !user) return null;
 
   return (
@@ -382,6 +421,55 @@ export default function AdminDashboard() {
                     <p className="mt-1 text-sm text-neutral-500">
                       Driver: {o.driver.name}
                     </p>
+                  )}
+
+                  {(o.serviceType === "dhl_express" || o.serviceType === "international") && (
+                    <div className="mt-2 rounded-md bg-neutral-50 p-2">
+                      <p className="text-xs font-medium text-neutral-500">
+                        Carrier tracking (internal only — not shown to customer)
+                      </p>
+                      {o.externalTrackingNumber ? (
+                        <p className="mt-1 flex items-center gap-2 text-sm text-neutral-700">
+                          <span className="font-mono">{o.carrierName || "DHL"}: {o.externalTrackingNumber}</span>
+                          <button
+                            onClick={() =>
+                              setCarrierTrackingInputs((prev) => ({
+                                ...prev,
+                                [o._id]: o.externalTrackingNumber || "",
+                              }))
+                            }
+                            className="text-xs font-medium text-orange-600 underline"
+                          >
+                            Edit
+                          </button>
+                        </p>
+                      ) : null}
+                      {(carrierTrackingInputs[o._id] !== undefined || !o.externalTrackingNumber) && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <input
+                            value={carrierTrackingInputs[o._id] ?? ""}
+                            onChange={(e) =>
+                              setCarrierTrackingInputs((prev) => ({
+                                ...prev,
+                                [o._id]: e.target.value,
+                              }))
+                            }
+                            placeholder="Enter DHL tracking number"
+                            className="w-full rounded-md border border-neutral-300 px-2 py-1 text-xs"
+                          />
+                          <button
+                            onClick={() => saveCarrierTracking(o._id)}
+                            disabled={
+                              savingCarrierTrackingFor === o._id ||
+                              !carrierTrackingInputs[o._id]?.trim()
+                            }
+                            className="shrink-0 rounded-md bg-neutral-800 px-2 py-1 text-xs font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+                          >
+                            {savingCarrierTrackingFor === o._id ? "Saving..." : "Save"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="flex flex-col items-end gap-1.5">

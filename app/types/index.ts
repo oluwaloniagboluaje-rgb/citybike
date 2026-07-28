@@ -59,6 +59,8 @@ export interface OrderClient {
   proofOfPaymentUrl?: string;
   pickupPhotoUrl?: string;
   deliveryPhotoUrl?: string;
+  externalTrackingNumber?: string;
+  carrierName?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -213,6 +213,15 @@ export default function OrderDetailPage() {
         )}
       </div>
 
+      {user.role === "admin" && order.externalTrackingNumber && (
+        <div className="mt-2 inline-block rounded-md bg-neutral-100 px-3 py-1.5 text-xs text-neutral-600">
+          <span className="font-medium">
+            {order.carrierName || "DHL"} tracking (internal only):
+          </span>{" "}
+          <span className="font-mono">{order.externalTrackingNumber}</span>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap gap-4 text-sm text-neutral-600">
         <span>
           Pickup time: {new Date(order.pickupTime).toLocaleString()}

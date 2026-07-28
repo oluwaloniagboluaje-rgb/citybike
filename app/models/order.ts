@@ -58,6 +58,12 @@ export interface IOrder extends Document {
   proofOfPaymentUrl?: string;
   pickupPhotoUrl?: string;
   deliveryPhotoUrl?: string;
+  // Internal reference to the tracking number issued by an external
+  // carrier (e.g. DHL) actually handling the physical shipment. Never
+  // exposed to the customer or on the public tracking page — customers
+  // only ever see the CityBike tracking number.
+  externalTrackingNumber?: string;
+  carrierName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -222,6 +228,9 @@ const OrderSchema = new Schema<IOrder>(
 
     pickupPhotoUrl: String,
     deliveryPhotoUrl: String,
+
+    externalTrackingNumber: String,
+    carrierName: String,
   },
   {
     timestamps: true,
