@@ -41,7 +41,7 @@ export default function OrderDetailPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const params = useParams();
-  const orderId = params.orderId as string;
+  const orderId = params?.orderId as string;
 
   const [order, setOrder] = useState<OrderClient | null>(null);
   const [error, setError] = useState("");

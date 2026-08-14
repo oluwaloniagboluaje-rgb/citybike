@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Suspense, useEffect, useState, FormEvent } from "react";
@@ -18,7 +19,7 @@ export default function PublicTrackPage() {
 
 function PublicTrackPageInner() {
   const searchParams = useSearchParams();
-  const prefill = searchParams.get("number") || "";
+  const prefill = searchParams?.get("number") || "";
 
   const [input, setInput] = useState(prefill);
   const [result, setResult] = useState<PublicTrackingResult | null>(null);
@@ -200,3 +201,4 @@ function PublicTrackPageInner() {
     </div>
   );
 }
+

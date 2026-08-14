@@ -3,6 +3,7 @@ import { connectDB } from "@/libs/mongodb";
 import Order, { OrderStatus } from "@/models/order";
 import { PublicTrackingResult } from "@/types";
 
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ trackingNumber: string }> }
@@ -10,9 +11,11 @@ export async function GET(
   await connectDB();
   const { trackingNumber } = await params;
 
+
   const order = await Order.findOne({
     trackingNumber: trackingNumber.trim().toUpperCase(),
   }).lean();
+
 
   if (!order) {
     return NextResponse.json(
@@ -20,6 +23,7 @@ export async function GET(
       { status: 404 }
     );
   }
+
 
   const result: PublicTrackingResult = {
     id: order._id.toString(),
@@ -33,6 +37,8 @@ export async function GET(
     isInternational: order.isInternational,
     packageDescription: order.packageDescription,
     recipientName: order.recipientName,
+    pickupTime: order.pickupTime.toISOString(),
+    eta: order.eta?.toISOString(),
     pickup: {
       city: order.pickup.city,
       country: order.pickup.country,
@@ -45,6 +51,11 @@ export async function GET(
       lat: order.dropoff.lat,
       lng: order.dropoff.lng,
     },
+    locationHistory: order.locationHistory?.map((point: { lat: number; lng: number; updatedAt: Date }) => ({
+      lat: point.lat,
+      lng: point.lng,
+      updatedAt: point.updatedAt.toISOString(),
+    })),
     lastLocation: order.lastLocation
       ? {
           lat: order.lastLocation.lat,
@@ -55,5 +66,6 @@ export async function GET(
     createdAt: order.createdAt.toISOString(),
   };
 
-  return NextResponse.json({ result });
+
+  return NextResponse.json(result);
 }
