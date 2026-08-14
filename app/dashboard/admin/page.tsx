@@ -92,6 +92,7 @@ export default function AdminDashboard() {
   const [selectedDriver, setSelectedDriver] = useState<Record<string, string>>(
     {}
   );
+  const [selectedStatus, setSelectedStatus] = useState<Record<string, string>>({});
   const [newOrderPing, setNewOrderPing] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -199,6 +200,26 @@ export default function AdminDashboard() {
       body: JSON.stringify({ driverId }),
     });
     if (res.ok) fetchOrders();
+  }
+
+  async function setCustomStatus(orderId: string) {
+    const status = selectedStatus[orderId];
+    if (!status) return;
+    setUpdatingStatus(orderId);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) fetchOrders();
+      else {
+        const data = await res.json().catch(() => ({}));
+        setModal({ open: true, variant: "error", title: "Could not update status", message: data.error || "Failed to update status." });
+      }
+    } finally {
+      setUpdatingStatus(null);
+    }
   }
 
   async function markAsPaid(orderId: string) {
@@ -338,6 +359,8 @@ export default function AdminDashboard() {
           Create Order for Client
         </button>
       </div>
+
+      
 
       {showCreateForm && (
         <AdminCreateOrderForm
@@ -590,6 +613,28 @@ export default function AdminDashboard() {
                   </button>
                 )}
 
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedStatus[o._id] ?? ""}
+                    onChange={(e) => setSelectedStatus((prev) => ({ ...prev, [o._id]: e.target.value }))}
+                    className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
+                  >
+                    <option value="">Set status...</option>
+                    {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setCustomStatus(o._id)}
+                    disabled={!selectedStatus[o._id] || updatingStatus === o._id}
+                    className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                  >
+                    Update
+                  </button>
+                </div>
+
                 <a
                   href={recipientWhatsAppLink(o)}
                   target="_blank"
@@ -684,6 +729,11 @@ interface CreatedOrder {
 function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
   const [senderName, setSenderName] = useState("");
   const [senderPhone, setSenderPhone] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<Array<{ _id: string; name: string; email: string; phone?: string }>>([]);
+  const [customerSearching, setCustomerSearching] = useState(false);
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupCity, setPickupCity] = useState("");
   const [dropoffAddress, setDropoffAddress] = useState("");
@@ -696,6 +746,8 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"bank_transfer" | "cash">("cash");
+  const [notifyByEmail, setNotifyByEmail] = useState(true);
+  const [notifyBySms, setNotifyBySms] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<CreatedOrder | null>(null);
@@ -721,34 +773,40 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
         return;
       }
 
+      const payload: any = {
+        customerEmail,
+        senderName,
+        senderPhone,
+        pickup: {
+          address: pickupAddress,
+          city: pickupCity,
+          country: "Nigeria",
+          lat: pickupLoc.lat,
+          lng: pickupLoc.lng,
+        },
+        dropoff: {
+          address: dropoffAddress,
+          city: dropoffCity,
+          country: dropoffCountry,
+          lat: dropoffLoc.lat,
+          lng: dropoffLoc.lng,
+        },
+        serviceType,
+        packageDescription,
+        packageSize,
+        weightKg: isInternational && weightKg ? parseFloat(weightKg) : undefined,
+        recipientName,
+        recipientPhone,
+        paymentMethod,
+      };
+      if (customerId) payload.customerId = customerId;
+      payload.notifyByEmail = notifyByEmail;
+      payload.notifyBySms = notifyBySms;
+
       const res = await fetch("/api/orders/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          senderName,
-          senderPhone,
-          pickup: {
-            address: pickupAddress,
-            city: pickupCity,
-            country: "Nigeria",
-            lat: pickupLoc.lat,
-            lng: pickupLoc.lng,
-          },
-          dropoff: {
-            address: dropoffAddress,
-            city: dropoffCity,
-            country: dropoffCountry,
-            lat: dropoffLoc.lat,
-            lng: dropoffLoc.lng,
-          },
-          serviceType,
-          packageDescription,
-          packageSize,
-          weightKg: isInternational && weightKg ? parseFloat(weightKg) : undefined,
-          recipientName,
-          recipientPhone,
-          paymentMethod,
-        }),
+        body: JSON.stringify(payload),
       });
 
       let data: { error?: string; order?: CreatedOrder } = {};
@@ -767,6 +825,26 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
       setSubmitting(false);
     }
   }
+
+  // Simple debounced search for existing customers
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!customerQuery || customerQuery.trim().length < 2) {
+        setCustomerResults([]);
+        return;
+      }
+      setCustomerSearching(true);
+      fetch(`/api/users/search?q=${encodeURIComponent(customerQuery)}`)
+        .then((r) => r.json())
+        .then((data) => {
+          setCustomerResults(data.users || []);
+        })
+        .catch(() => setCustomerResults([]))
+        .finally(() => setCustomerSearching(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [customerQuery]);
+
 
   if (createdOrder) {
     const trackingUrl = trackingUrlFor(createdOrder.trackingNumber);
@@ -848,6 +926,49 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
             onChange={(e) => setSenderPhone(e.target.value)}
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-neutral-700">Search existing customer (name or email)</label>
+          <input
+            value={customerQuery}
+            onChange={(e) => {
+              setCustomerQuery(e.target.value);
+              setCustomerId(null);
+              setCustomerEmail(e.target.value);
+            }}
+            placeholder="Type to search — or type an email to create a new customer"
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          {customerSearching && <p className="text-xs text-neutral-500">Searching...</p>}
+          {customerResults.length > 0 && (
+            <div className="mt-1 max-h-48 w-full overflow-auto rounded-md border border-neutral-200 bg-white">
+              {customerResults.map((u) => (
+                <button
+                  key={u._id}
+                  type="button"
+                  onClick={() => {
+                    setCustomerId(u._id);
+                    setCustomerEmail(u.email);
+                    setCustomerQuery(`${u.name} <${u.email}>`);
+                    setCustomerResults([]);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50"
+                >
+                  <div className="font-medium">{u.name}</div>
+                  <div className="text-xs text-neutral-500">{u.email} {u.phone ? `· ${u.phone}` : ""}</div>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="mt-2">
+            <label className="mb-1 block text-sm font-medium text-neutral-700">Customer email (recipient)</label>
+            <input
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+              placeholder="customer@example.com"
+              className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+          </div>
         </div>
       </div>
 
@@ -984,6 +1105,13 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
           <option value="cash">Cash (received in person)</option>
           <option value="bank_transfer">Bank Transfer</option>
         </select>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input id="notifyEmail" type="checkbox" checked={notifyByEmail} onChange={(e) => setNotifyByEmail(e.target.checked)} />
+        <label htmlFor="notifyEmail" className="text-sm text-neutral-700">Notify customer by email</label>
+        <input id="notifySms" type="checkbox" checked={notifyBySms} onChange={(e) => setNotifyBySms(e.target.checked)} />
+        <label htmlFor="notifySms" className="text-sm text-neutral-700">Notify customer by SMS/WhatsApp</label>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

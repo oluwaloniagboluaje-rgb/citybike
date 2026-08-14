@@ -2,10 +2,20 @@ export type UserRole = "customer" | "admin" | "driver";
 
 export type OrderStatus =
   | "pending"
+  | "shipment_created"
+  | "awaiting_batching"
+  | "added_to_batch"
+  | "ready_for_shipping"
+  | "left_origin"
+  | "in_transit"
+  | "landed"
+  | "customs_processing"
   | "confirmed"
   | "assigned"
+  | "assigned_courier"
   | "picked_up"
-  | "in_transit"
+  | "delivered_by_courier"
+  | "delivery_confirmed"
   | "delivered"
   | "cancelled";
 
@@ -66,6 +76,7 @@ export interface OrderClient {
 }
 
 export interface PublicTrackingResult {
+  id?: string;
   trackingNumber: string;
   status: OrderStatus;
   statusHistory: { status: OrderStatus; at: string }[];
@@ -100,21 +111,41 @@ export interface MessageClient {
 }
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: "Pending Confirmation",
+  pending: "Pending",
+  shipment_created: "Shipment Created",
+  awaiting_batching: "Awaiting Batching",
+  added_to_batch: "Added to Batch",
+  ready_for_shipping: "Ready for Shipping",
+  left_origin: "Left Origin",
+  in_transit: "In Transit",
+  landed: "Landed at Destination",
+  customs_processing: "Customs Processing",
   confirmed: "Confirmed - Awaiting Driver",
   assigned: "Driver Assigned",
+  assigned_courier: "Courier Assigned",
   picked_up: "Package Picked Up",
-  in_transit: "In Transit",
+  delivered_by_courier: "Delivered by Courier",
+  delivery_confirmed: "Delivery Confirmed",
   delivered: "Delivered",
   cancelled: "Cancelled",
 };
 
 export const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: "bg-yellow-100 text-yellow-800",
+  shipment_created: "bg-yellow-100 text-yellow-800",
+  awaiting_batching: "bg-yellow-100 text-yellow-800",
+  added_to_batch: "bg-yellow-100 text-yellow-800",
+  ready_for_shipping: "bg-blue-100 text-blue-800",
+  left_origin: "bg-orange-100 text-orange-800",
+  in_transit: "bg-orange-100 text-orange-800",
+  landed: "bg-violet-100 text-violet-800",
+  customs_processing: "bg-amber-100 text-amber-800",
   confirmed: "bg-blue-100 text-blue-800",
   assigned: "bg-violet-100 text-violet-800",
+  assigned_courier: "bg-violet-100 text-violet-800",
   picked_up: "bg-purple-100 text-purple-800",
-  in_transit: "bg-orange-100 text-orange-800",
+  delivered_by_courier: "bg-green-100 text-green-800",
+  delivery_confirmed: "bg-green-100 text-green-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
 };

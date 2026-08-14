@@ -4,6 +4,8 @@ import Order, { OrderStatus } from "@/models/order";
 import User from "@/models/User";
 import { getUserFromRequest } from "@/libs/auth";
 import { sendMail, getOrderStatusUpdateEmail } from "@/libs/mailer";
+import { serverBroadcast } from "@/libs/broadcast";
+import { orderStatusChannel } from "@/libs/supabaseClient";
 import { z } from "zod";
 
 // Referencing User here (even trivially) prevents production bundlers
@@ -14,10 +16,20 @@ void User;
 const statusUpdateSchema = z.object({
   status: z.enum([
     "pending",
+    "shipment_created",
+    "awaiting_batching",
+    "added_to_batch",
+    "ready_for_shipping",
+    "left_origin",
+    "in_transit",
+    "landed",
+    "customs_processing",
     "confirmed",
     "assigned",
+    "assigned_courier",
     "picked_up",
-    "in_transit",
+    "delivered_by_courier",
+    "delivery_confirmed",
     "delivered",
     "cancelled",
   ]),
@@ -98,6 +110,13 @@ export async function POST(
     } catch (mailError) {
       console.error("Status update email failed:", mailError);
     }
+  }
+
+  // Broadcast status update so tracking page can update in realtime
+  try {
+    await serverBroadcast(orderStatusChannel(order._id.toString()), "status-update", populated);
+  } catch (err) {
+    console.error("Broadcast failed", err);
   }
 
   return NextResponse.json({ order: populated });

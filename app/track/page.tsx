@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { PublicTrackingResult, SERVICE_TYPE_LABELS } from "@/types";
+import { supabase, orderStatusChannel } from "@/libs/supabaseClient";
 import StatusBadge from "@/components/ui/statusbadge";
 import LiveMap from "@/components/map/livemapClient";
 import { Search, Globe2, PackageSearch } from "lucide-react";
@@ -32,6 +33,24 @@ function PublicTrackPageInner() {
       setInput(prefill);
     }
   }, [prefill]);
+
+  // Subscribe to realtime status updates when viewing a specific order
+  useEffect(() => {
+    if (!result?.id) return;
+    const channel = supabase.channel(orderStatusChannel(result.id));
+    channel.on("broadcast", { event: "status-update" }, (payload) => {
+      try {
+        // payload contains the populated order object; update the UI
+        setResult((prev) => ({ ...(prev || {}), ...(payload as Partial<PublicTrackingResult>) } as PublicTrackingResult));
+      } catch (err) {
+        // ignore
+      }
+    }).subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [result?.id]);
 
   async function handleSearch(e: FormEvent) {
     e.preventDefault();

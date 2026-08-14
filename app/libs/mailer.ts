@@ -149,17 +149,57 @@ export function getDriverAssignedEmail(
 // updates the order status (assigned, picked up, in transit, delivered).
 // Local orders are handled entirely over WhatsApp and never use this.
 const STATUS_MESSAGES: Partial<Record<OrderStatus, { title: string; body: string }>> = {
+  shipment_created: {
+    title: "Your shipment has been created",
+    body: "We have created your shipment and assigned a tracking number. You can track its progress using the link below.",
+  },
+  awaiting_batching: {
+    title: "Your shipment is awaiting batching",
+    body: "Your shipment is queued and will be assigned to a batch for processing shortly.",
+  },
+  added_to_batch: {
+    title: "Your shipment has been added to a batch",
+    body: "Your shipment has been grouped with other packages and will be prepared for shipping.",
+  },
+  ready_for_shipping: {
+    title: "Your shipment is ready for shipping",
+    body: "Your shipment is prepared and ready to be dispatched.",
+  },
+  left_origin: {
+    title: "Your shipment has left the origin",
+    body: "Your shipment has departed from the origin facility and is en route to the destination country or hub.",
+  },
+  in_transit: {
+    title: "Your package is in transit",
+    body: "Your package is currently in transit toward its destination.",
+  },
+  landed: {
+    title: "Your shipment has landed",
+    body: "Your shipment has arrived at the destination country and will continue local processing shortly.",
+  },
+  customs_processing: {
+    title: "Your shipment is with customs",
+    body: "Your shipment is currently undergoing customs processing. We will notify you when it clears and proceeds to local delivery.",
+  },
   assigned: {
     title: "A driver has been assigned to your shipment",
     body: "Your package has been assigned to one of our drivers and will be picked up shortly.",
+  },
+  assigned_courier: {
+    title: "A courier has been assigned",
+    body: "A courier has been assigned to deliver your shipment and will contact you if necessary.",
   },
   picked_up: {
     title: "Your package has been picked up",
     body: "Your package has been picked up by our driver and is on its way to the next stage of its journey.",
   },
-  in_transit: {
-    title: "Your package is in transit",
-    body: "Your package is currently in transit toward its destination.",
+  delivered_by_courier: {
+    title: "Your package was delivered by courier",
+    body: "Your package was handed to the courier for final delivery. We'll confirm once delivery is complete.",
+  },
+  delivery_confirmed: {
+    title: "Delivery confirmed",
+    body: "Delivery has been confirmed. Thank you for using CityBike Logistics.",
   },
   delivered: {
     title: "Your package has been delivered",

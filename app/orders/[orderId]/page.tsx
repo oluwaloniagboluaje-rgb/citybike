@@ -306,7 +306,7 @@ export default function OrderDetailPage() {
             return (
               <li key={i} className="relative">
                 <span
-                  className={`absolute -left-[27px] top-0.5 h-3 w-3 rounded-full border-2 border-white ${
+                  className={`absolute -left-7 top-0.5 h-3 w-3 rounded-full border-2 border-white ${
                     isLast ? "bg-orange-500" : "bg-neutral-300"
                   }`}
                 />

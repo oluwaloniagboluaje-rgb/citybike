@@ -31,6 +31,7 @@ export default function Home() {
             width={88}
             height={88}
             className="mx-auto mb-6 rounded-2xl"
+            style={{ height: "auto" }}
             priority
           />
           <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-1.5 text-sm text-orange-400">

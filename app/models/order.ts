@@ -2,10 +2,20 @@ import mongoose, { Schema, Document, Types } from "mongoose";
 
 export type OrderStatus =
   | "pending"
+  | "shipment_created"
+  | "awaiting_batching"
+  | "added_to_batch"
+  | "ready_for_shipping"
+  | "left_origin"
+  | "in_transit"
+  | "landed"
+  | "customs_processing"
   | "confirmed"
   | "assigned"
+  | "assigned_courier"
   | "picked_up"
-  | "in_transit"
+  | "delivered_by_courier"
+  | "delivery_confirmed"
   | "delivered"
   | "cancelled";
 
@@ -173,10 +183,20 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       enum: [
         "pending",
+        "shipment_created",
+        "awaiting_batching",
+        "added_to_batch",
+        "ready_for_shipping",
+        "left_origin",
+        "in_transit",
+          "landed",
+          "customs_processing",
         "confirmed",
         "assigned",
+        "assigned_courier",
         "picked_up",
-        "in_transit",
+        "delivered_by_courier",
+        "delivery_confirmed",
         "delivered",
         "cancelled",
       ],
