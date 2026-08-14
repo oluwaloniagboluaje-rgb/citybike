@@ -158,8 +158,12 @@ interface CreatedOrder {
 function NewOrderForm({ onCreated }: { onCreated: () => void }) {
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupCity, setPickupCity] = useState("");
+  const [pickupState, setPickupState] = useState("");
+  const [pickupPostalCode, setPickupPostalCode] = useState("");
   const [dropoffAddress, setDropoffAddress] = useState("");
   const [dropoffCity, setDropoffCity] = useState("");
+  const [dropoffState, setDropoffState] = useState("");
+  const [dropoffPostalCode, setDropoffPostalCode] = useState("");
   const [dropoffCountry, setDropoffCountry] = useState("Nigeria");
   const [serviceType, setServiceType] = useState<ServiceType>("local");
   const [packageDescription, setPackageDescription] = useState("");
@@ -168,6 +172,7 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
   );
   const [weightKg, setWeightKg] = useState("");
   const [recipientName, setRecipientName] = useState("");
+  const [recipientPhoneCode, setRecipientPhoneCode] = useState("+234");
   const [recipientPhone, setRecipientPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"bank_transfer" | "paystack">(
     "bank_transfer"
@@ -210,6 +215,8 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
             address: pickupAddress,
             city: pickupCity,
             country: "Nigeria",
+            state: pickupState || undefined,
+            postalCode: pickupPostalCode || undefined,
             lat: pickupLoc.lat,
             lng: pickupLoc.lng,
           },
@@ -217,6 +224,8 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
             address: dropoffAddress,
             city: dropoffCity,
             country: dropoffCountry,
+            state: dropoffState || undefined,
+            postalCode: dropoffPostalCode || undefined,
             lat: dropoffLoc.lat,
             lng: dropoffLoc.lng,
           },
@@ -225,7 +234,8 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
           packageSize,
           weightKg: isInternational && weightKg ? parseFloat(weightKg) : undefined,
           recipientName,
-          recipientPhone,
+          recipientPhone: `${recipientPhoneCode || "+234"}${recipientPhone}`,
+          recipientPhoneCode: recipientPhoneCode || "+234",
           // WhatsApp-flow orders still need a valid enum value for the
           // backend; bank_transfer is used as the underlying record even
           // though payment is actually coordinated over WhatsApp.
@@ -403,6 +413,18 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
             onChange={(e) => setPickupCity(e.target.value)}
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
+          <input
+            placeholder="State / region (e.g. Oyo)"
+            value={pickupState}
+            onChange={(e) => setPickupState(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          <input
+            placeholder="Postcode / ZIP"
+            value={pickupPostalCode}
+            onChange={(e) => setPickupPostalCode(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
         </fieldset>
 
         <fieldset className="space-y-2 rounded-md border border-neutral-200 p-3">
@@ -421,6 +443,18 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
             placeholder="City"
             value={dropoffCity}
             onChange={(e) => setDropoffCity(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          <input
+            placeholder="State / region"
+            value={dropoffState}
+            onChange={(e) => setDropoffState(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          <input
+            placeholder="Postcode / ZIP"
+            value={dropoffPostalCode}
+            onChange={(e) => setDropoffPostalCode(e.target.value)}
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
           <select
@@ -498,12 +532,20 @@ function NewOrderForm({ onCreated }: { onCreated: () => void }) {
           <label className="mb-1 block text-sm font-medium text-neutral-700">
             Recipient phone
           </label>
-          <input
-            required
-            value={recipientPhone}
-            onChange={(e) => setRecipientPhone(e.target.value)}
-            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-          />
+          <div className="flex gap-2">
+            <input
+              value={recipientPhoneCode}
+              onChange={(e) => setRecipientPhoneCode(e.target.value)}
+              placeholder="+234"
+              className="w-24 rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+            <input
+              required
+              value={recipientPhone}
+              onChange={(e) => setRecipientPhone(e.target.value)}
+              className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+          </div>
         </div>
       </div>
 

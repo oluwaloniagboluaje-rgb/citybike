@@ -17,6 +17,8 @@ const locationSchema = z.object({
   address: z.string().min(1),
   city: z.string().min(1),
   country: z.string().min(1).default("Nigeria"),
+  state: z.string().optional(),
+  postalCode: z.string().optional(),
   lat: z.number(),
   lng: z.number(),
 });
@@ -47,6 +49,7 @@ const adminCreateSchema = z.object({
   weightKg: z.number().positive().optional(),
   recipientName: z.string().min(1),
   recipientPhone: z.string().min(1),
+  recipientPhoneCode: z.string().optional(),
   paymentMethod: z.enum(["bank_transfer", "cash"]).default("cash"),
 });
 

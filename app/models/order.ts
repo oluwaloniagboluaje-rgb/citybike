@@ -14,6 +14,10 @@ export type OrderStatus =
   | "assigned"
   | "assigned_courier"
   | "picked_up"
+  | "awaiting_dispatch"
+  | "dispatched"
+  | "destination_hub"
+  | "out_for_delivery"
   | "delivered_by_courier"
   | "delivery_confirmed"
   | "delivered"
@@ -36,6 +40,8 @@ export interface ILocationPoint {
   address: string;
   city: string;
   country: string;
+  state?: string;
+  postalCode?: string;
   lat: number;
   lng: number;
 }
@@ -56,6 +62,7 @@ export interface IOrder extends Document {
   weightKg?: number;
   recipientName: string;
   recipientPhone: string;
+  recipientPhoneCode?: string;
   pickupTime: Date;
   eta?: Date;
   status: OrderStatus;
@@ -83,6 +90,8 @@ const LocationPointSchema = new Schema<ILocationPoint>(
     address: { type: String, required: true },
     city: { type: String, required: true },
     country: { type: String, required: true, default: "Nigeria" },
+    state: { type: String },
+    postalCode: { type: String },
     lat: { type: Number, required: true },
     lng: { type: Number, required: true },
   },
@@ -170,6 +179,8 @@ const OrderSchema = new Schema<IOrder>(
       required: true,
     },
 
+    recipientPhoneCode: { type: String },
+
     pickupTime: {
       type: Date,
       default: Date.now,
@@ -195,6 +206,10 @@ const OrderSchema = new Schema<IOrder>(
         "assigned",
         "assigned_courier",
         "picked_up",
+        "awaiting_dispatch",
+        "dispatched",
+        "destination_hub",
+        "out_for_delivery",
         "delivered_by_courier",
         "delivery_confirmed",
         "delivered",

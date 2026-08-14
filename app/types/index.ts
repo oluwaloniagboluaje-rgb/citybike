@@ -14,6 +14,10 @@ export type OrderStatus =
   | "assigned"
   | "assigned_courier"
   | "picked_up"
+  | "awaiting_dispatch"
+  | "dispatched"
+  | "destination_hub"
+  | "out_for_delivery"
   | "delivered_by_courier"
   | "delivery_confirmed"
   | "delivered"
@@ -36,6 +40,8 @@ export interface LocationPoint {
   address: string;
   city: string;
   country: string;
+  state?: string;
+  postalCode?: string;
   lat: number;
   lng: number;
 }
@@ -57,6 +63,7 @@ export interface OrderClient {
   weightKg?: number;
   recipientName: string;
   recipientPhone: string;
+  recipientPhoneCode?: string;
   pickupTime: string;
   eta?: string;
   status: OrderStatus;
@@ -124,6 +131,10 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   assigned: "Driver Assigned",
   assigned_courier: "Courier Assigned",
   picked_up: "Package Picked Up",
+  awaiting_dispatch: "Awaiting Dispatch",
+  dispatched: "Dispatched",
+  destination_hub: "Destination Hub",
+  out_for_delivery: "Out for Delivery",
   delivered_by_courier: "Delivered by Courier",
   delivery_confirmed: "Delivery Confirmed",
   delivered: "Delivered",
@@ -144,6 +155,10 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   assigned: "bg-violet-100 text-violet-800",
   assigned_courier: "bg-violet-100 text-violet-800",
   picked_up: "bg-purple-100 text-purple-800",
+  awaiting_dispatch: "bg-amber-100 text-amber-800",
+  dispatched: "bg-cyan-100 text-cyan-800",
+  destination_hub: "bg-indigo-100 text-indigo-800",
+  out_for_delivery: "bg-orange-100 text-orange-800",
   delivered_by_courier: "bg-green-100 text-green-800",
   delivery_confirmed: "bg-green-100 text-green-800",
   delivered: "bg-green-100 text-green-800",

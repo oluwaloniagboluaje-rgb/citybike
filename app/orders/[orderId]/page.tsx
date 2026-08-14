@@ -26,8 +26,16 @@ function getTimelineDescription(
       return "Driver assigned to this delivery";
     case "picked_up":
       return `Picked up from ${order.pickup.city}`;
+    case "awaiting_dispatch":
+      return "Awaiting dispatch for the next shipment stage";
+    case "dispatched":
+      return "Package dispatched";
     case "in_transit":
       return `In transit to ${order.dropoff.city}`;
+    case "destination_hub":
+      return `Arrived at destination hub in ${order.dropoff.city}`;
+    case "out_for_delivery":
+      return `Out for delivery in ${order.dropoff.city}`;
     case "delivered":
       return `Delivered to ${order.dropoff.city}`;
     case "cancelled":

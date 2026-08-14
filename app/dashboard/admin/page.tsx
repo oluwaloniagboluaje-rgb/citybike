@@ -24,9 +24,67 @@ interface Driver {
 
 const NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
   assigned: { next: "picked_up", label: "Mark Picked Up" },
-  picked_up: { next: "in_transit", label: "Mark In Transit" },
+  picked_up: { next: "in_transit", label: "Start Delivery" },
   in_transit: { next: "delivered", label: "Mark Delivered" },
 };
+
+const INTERSTATE_NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
+  confirmed: { next: "picked_up", label: "Mark Picked Up" },
+  picked_up: { next: "awaiting_dispatch", label: "Mark Awaiting Dispatch" },
+  awaiting_dispatch: { next: "dispatched", label: "Mark Dispatched" },
+  dispatched: { next: "in_transit", label: "Mark In Transit" },
+  in_transit: { next: "destination_hub", label: "Mark Destination Hub" },
+  destination_hub: { next: "out_for_delivery", label: "Mark Out for Delivery" },
+  out_for_delivery: { next: "delivered", label: "Mark Delivered" },
+};
+
+const STATUS_OPTIONS_BY_SERVICE: Record<ServiceType, OrderStatus[]> = {
+  local: ["pending", "confirmed", "assigned", "picked_up", "in_transit", "delivered", "cancelled"],
+  interstate: ["confirmed", "picked_up", "awaiting_dispatch", "dispatched", "in_transit", "destination_hub", "out_for_delivery", "delivered", "cancelled"],
+  international: [
+    "shipment_created",
+    "awaiting_batching",
+    "added_to_batch",
+    "ready_for_shipping",
+    "left_origin",
+    "in_transit",
+    "landed",
+    "customs_processing",
+    "confirmed",
+    "assigned",
+    "assigned_courier",
+    "picked_up",
+    "delivered_by_courier",
+    "delivery_confirmed",
+    "delivered",
+    "cancelled",
+  ],
+  dhl_express: [
+    "shipment_created",
+    "awaiting_batching",
+    "added_to_batch",
+    "ready_for_shipping",
+    "left_origin",
+    "in_transit",
+    "landed",
+    "customs_processing",
+    "confirmed",
+    "assigned",
+    "assigned_courier",
+    "picked_up",
+    "delivered_by_courier",
+    "delivery_confirmed",
+    "delivered",
+    "cancelled",
+  ],
+  ecommerce: ["pending", "confirmed", "assigned", "picked_up", "in_transit", "delivered", "cancelled"],
+  errand: ["pending", "confirmed", "assigned", "picked_up", "delivered", "cancelled"],
+  corporate: ["pending", "confirmed", "assigned", "picked_up", "in_transit", "delivered", "cancelled"],
+};
+
+function getStatusOptionsForOrder(order: OrderClient): OrderStatus[] {
+  return STATUS_OPTIONS_BY_SERVICE[order.serviceType] ?? STATUS_OPTIONS_BY_SERVICE.local;
+}
 
 function toWhatsAppDigits(rawPhone: string): string {
   const digits = rawPhone.replace(/\D/g, "");
@@ -55,6 +113,14 @@ function statusMessageFor(order: OrderClient): string {
       return "A driver has been assigned and will pick up the package shortly.";
     case "picked_up":
       return `Your package has been picked up from ${order.pickup.city}.`;
+    case "awaiting_dispatch":
+      return "Your package is awaiting dispatch and is being prepared for the next handoff.";
+    case "dispatched":
+      return "Your package has been dispatched and is moving toward its destination.";
+    case "destination_hub":
+      return `Your package has reached the destination hub for ${order.dropoff.city}.`;
+    case "out_for_delivery":
+      return `Your package is out for delivery in ${order.dropoff.city}.`;
     case "in_transit":
       return `Your package is in transit to ${order.dropoff.city}.`;
     case "delivered":
@@ -391,7 +457,10 @@ export default function AdminDashboard() {
             </h2>
             <div className="space-y-3">
               {group.items.map((o) => {
-                const nextAction = NEXT_STATUS[o.status];
+                const nextAction =
+                  o.serviceType === "interstate"
+                    ? INTERSTATE_NEXT_STATUS[o.status]
+                    : NEXT_STATUS[o.status];
                 const isUploadingThis = uploadingPhotoFor === o._id;
 
                 return (
@@ -620,9 +689,9 @@ export default function AdminDashboard() {
                     className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
                   >
                     <option value="">Set status...</option>
-                    {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
+                    {getStatusOptionsForOrder(o).map((status) => (
+                      <option key={status} value={status}>
+                        {STATUS_LABELS[status]}
                       </option>
                     ))}
                   </select>
@@ -736,14 +805,19 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
   const [customerSearching, setCustomerSearching] = useState(false);
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupCity, setPickupCity] = useState("");
+  const [pickupState, setPickupState] = useState("");
+  const [pickupPostalCode, setPickupPostalCode] = useState("");
   const [dropoffAddress, setDropoffAddress] = useState("");
   const [dropoffCity, setDropoffCity] = useState("");
+  const [dropoffState, setDropoffState] = useState("");
+  const [dropoffPostalCode, setDropoffPostalCode] = useState("");
   const [dropoffCountry, setDropoffCountry] = useState("Nigeria");
   const [serviceType, setServiceType] = useState<ServiceType>("local");
   const [packageDescription, setPackageDescription] = useState("");
   const [packageSize, setPackageSize] = useState<"small" | "medium" | "large">("small");
   const [weightKg, setWeightKg] = useState("");
   const [recipientName, setRecipientName] = useState("");
+  const [recipientPhoneCode, setRecipientPhoneCode] = useState("+234");
   const [recipientPhone, setRecipientPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"bank_transfer" | "cash">("cash");
   const [notifyByEmail, setNotifyByEmail] = useState(true);
@@ -781,6 +855,8 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
           address: pickupAddress,
           city: pickupCity,
           country: "Nigeria",
+          state: pickupState || undefined,
+          postalCode: pickupPostalCode || undefined,
           lat: pickupLoc.lat,
           lng: pickupLoc.lng,
         },
@@ -788,6 +864,8 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
           address: dropoffAddress,
           city: dropoffCity,
           country: dropoffCountry,
+          state: dropoffState || undefined,
+          postalCode: dropoffPostalCode || undefined,
           lat: dropoffLoc.lat,
           lng: dropoffLoc.lng,
         },
@@ -991,6 +1069,18 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
             onChange={(e) => setPickupCity(e.target.value)}
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
+          <input
+            placeholder="State / region (e.g. Oyo)"
+            value={pickupState}
+            onChange={(e) => setPickupState(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          <input
+            placeholder="Postcode / ZIP"
+            value={pickupPostalCode}
+            onChange={(e) => setPickupPostalCode(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
         </fieldset>
 
         <fieldset className="space-y-2 rounded-md border border-neutral-200 p-3">
@@ -1009,6 +1099,18 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
             placeholder="City"
             value={dropoffCity}
             onChange={(e) => setDropoffCity(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          <input
+            placeholder="State / region"
+            value={dropoffState}
+            onChange={(e) => setDropoffState(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          />
+          <input
+            placeholder="Postcode / ZIP"
+            value={dropoffPostalCode}
+            onChange={(e) => setDropoffPostalCode(e.target.value)}
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
           <select
@@ -1084,12 +1186,20 @@ function AdminCreateOrderForm({ onCreated }: { onCreated: () => void }) {
           <label className="mb-1 block text-sm font-medium text-neutral-700">
             Recipient phone
           </label>
-          <input
-            required
-            value={recipientPhone}
-            onChange={(e) => setRecipientPhone(e.target.value)}
-            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
-          />
+          <div className="flex gap-2">
+            <input
+              value={recipientPhoneCode}
+              onChange={(e) => setRecipientPhoneCode(e.target.value)}
+              placeholder="+234"
+              className="w-24 rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+            <input
+              required
+              value={recipientPhone}
+              onChange={(e) => setRecipientPhone(e.target.value)}
+              className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            />
+          </div>
         </div>
       </div>
 

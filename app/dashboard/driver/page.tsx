@@ -19,6 +19,16 @@ const NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: strin
   in_transit: { next: "delivered", label: "Mark Delivered" },
 };
 
+const INTERSTATE_NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; label: string }>> = {
+  confirmed: { next: "picked_up", label: "Mark Picked Up" },
+  picked_up: { next: "awaiting_dispatch", label: "Mark Awaiting Dispatch" },
+  awaiting_dispatch: { next: "dispatched", label: "Mark Dispatched" },
+  dispatched: { next: "in_transit", label: "Mark In Transit" },
+  in_transit: { next: "destination_hub", label: "Mark Destination Hub" },
+  destination_hub: { next: "out_for_delivery", label: "Mark Out for Delivery" },
+  out_for_delivery: { next: "delivered", label: "Mark Delivered" },
+};
+
 export default function DriverDashboard() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -230,7 +240,10 @@ export default function DriverDashboard() {
             </h2>
             <div className="space-y-3">
               {group.items.map((o) => {
-                const nextAction = NEXT_STATUS[o.status];
+                const nextAction =
+                  o.serviceType === "interstate"
+                    ? INTERSTATE_NEXT_STATUS[o.status]
+                    : NEXT_STATUS[o.status];
                 const isSharing = sharingLocationFor === o._id;
                 const canShareLocation = ["assigned", "picked_up", "in_transit"].includes(o.status);
                 const isUploadingThis = uploadingPhotoFor === o._id;
