@@ -29,6 +29,13 @@ export async function GET(
       status: h.status,
       at: h.at.toISOString(),
     })),
+    dhlStatusHistory: order.dhlStatusHistory?.map((h: any) => ({
+      status: h.status,
+      at: h.at.toISOString(),
+      description: h.description,
+    })),
+    externalTrackingNumber: order.externalTrackingNumber,
+    carrierName: order.carrierName,
     serviceType: order.serviceType,
     isInternational: order.isInternational,
     packageDescription: order.packageDescription,

@@ -3,11 +3,11 @@
 
 import { Suspense, useEffect, useState, FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { OrderStatus, PublicTrackingResult, SERVICE_TYPE_LABELS } from "@/types";
+import { OrderStatus, PublicTrackingResult, SERVICE_TYPE_LABELS, DHLStatus, DHL_STATUS_LABELS } from "@/types";
 import { supabase, orderStatusChannel } from "@/libs/supabaseClient";
 import StatusBadge from "@/components/ui/statusbadge";
 import LiveMap from "@/components/map/livemapClient";
-import { Search, Globe2, PackageSearch } from "lucide-react";
+import { Search, Globe2, PackageSearch, Truck } from "lucide-react";
 
 function getTimelineDescription(
   status: OrderStatus,
@@ -36,6 +36,35 @@ function getTimelineDescription(
       return `Delivered to ${order.dropoff.city}`;
     case "cancelled":
       return "Order cancelled";
+    default:
+      return "Status updated";
+  }
+}
+
+function getDHLTimelineDescription(
+  status: DHLStatus,
+  description?: string,
+  order?: Pick<PublicTrackingResult, "pickup" | "dropoff">
+): string {
+  if (description) return description;
+
+  switch (status) {
+    case "shipment_picked_up":
+      return order ? `Picked up from ${order.pickup.city}` : "Shipment picked up";
+    case "in_transit":
+      return order ? `In transit to ${order.dropoff.city}` : "In transit";
+    case "out_for_delivery":
+      return order ? `Out for delivery in ${order.dropoff.city}` : "Out for delivery";
+    case "delivered":
+      return order ? `Delivered to ${order.dropoff.city}` : "Delivered";
+    case "failed_delivery_attempt":
+      return "Failed delivery attempt";
+    case "returned":
+      return "Returned to shipper";
+    case "customs_cleared":
+      return "Cleared customs";
+    case "exception":
+      return "Exception on shipment";
     default:
       return "Status updated";
   }
@@ -232,6 +261,47 @@ function PublicTrackPageInner() {
               })}
             </ol>
           </div>
+
+          {result.dhlStatusHistory && result.dhlStatusHistory.length > 0 && (
+            <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-5">
+              <div className="flex items-center gap-2">
+                <Truck className="h-5 w-5 text-blue-600" />
+                <h2 className="text-sm font-semibold text-blue-900">
+                  {result.carrierName || "DHL"} Tracking Timeline
+                </h2>
+              </div>
+              {result.externalTrackingNumber && (
+                <p className="mt-2 text-xs text-blue-700">
+                  Tracking #: <span className="font-mono font-semibold">{result.externalTrackingNumber}</span>
+                </p>
+              )}
+              <ol className="relative mt-4 space-y-6 border-l-2 border-blue-300 pl-5">
+                {result.dhlStatusHistory.map((h, i) => {
+                  const isLast = i === result.dhlStatusHistory!.length - 1;
+                  return (
+                    <li key={i} className="relative">
+                      <span
+                        className={`absolute -left-7 top-0.5 h-3 w-3 rounded-full border-2 border-white ${
+                          isLast ? "bg-blue-600" : "bg-blue-300"
+                        }`}
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-block rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-medium text-white">
+                          {DHL_STATUS_LABELS[h.status as DHLStatus]}
+                        </span>
+                        <span className="text-xs text-blue-600">
+                          {new Date(h.at).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-blue-900">
+                        {getDHLTimelineDescription(h.status as DHLStatus, h.description, result)}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          )}
 
           <p className="text-center text-xs text-neutral-400">
             Need help with this shipment? Contact us at{" "}

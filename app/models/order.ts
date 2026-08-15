@@ -36,6 +36,16 @@ export type PaymentMethod = "bank_transfer" | "paystack" | "cash";
 
 export type PaymentStatus = "pending" | "paid" | "failed";
 
+export type DHLStatus =
+  | "shipment_picked_up"
+  | "in_transit"
+  | "out_for_delivery"
+  | "delivered"
+  | "failed_delivery_attempt"
+  | "returned"
+  | "customs_cleared"
+  | "exception";
+
 export interface ILocationPoint {
   address: string;
   city: string;
@@ -67,6 +77,7 @@ export interface IOrder extends Document {
   eta?: Date;
   status: OrderStatus;
   statusHistory: { status: OrderStatus; at: Date }[];
+  dhlStatusHistory?: { status: DHLStatus; at: Date; description?: string }[];
   price?: number;
   lastLocation?: { lat: number; lng: number; updatedAt: Date };
   locationHistory?: { lat: number; lng: number; updatedAt: Date }[];
@@ -228,6 +239,29 @@ const OrderSchema = new Schema<IOrder>(
           type: Date,
           default: Date.now,
         },
+      },
+    ],
+
+    dhlStatusHistory: [
+      {
+        status: {
+          type: String,
+          enum: [
+            "shipment_picked_up",
+            "in_transit",
+            "out_for_delivery",
+            "delivered",
+            "failed_delivery_attempt",
+            "returned",
+            "customs_cleared",
+            "exception",
+          ],
+        },
+        at: {
+          type: Date,
+          default: Date.now,
+        },
+        description: String,
       },
     ],
 

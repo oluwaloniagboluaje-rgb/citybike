@@ -36,6 +36,16 @@ export type PaymentMethod = "bank_transfer" | "paystack" | "cash";
 
 export type PaymentStatus = "pending" | "paid" | "failed";
 
+export type DHLStatus =
+  | "shipment_picked_up"
+  | "in_transit"
+  | "out_for_delivery"
+  | "delivered"
+  | "failed_delivery_attempt"
+  | "returned"
+  | "customs_cleared"
+  | "exception";
+
 export interface LocationPoint {
   address: string;
   city: string;
@@ -68,6 +78,7 @@ export interface OrderClient {
   eta?: string;
   status: OrderStatus;
   statusHistory: { status: OrderStatus; at: string }[];
+  dhlStatusHistory?: { status: DHLStatus; at: string; description?: string }[];
   price?: number;
   lastLocation?: { lat: number; lng: number; updatedAt: string };
   locationHistory?: { lat: number; lng: number; updatedAt: string }[];
@@ -87,6 +98,9 @@ export interface PublicTrackingResult {
   trackingNumber: string;
   status: OrderStatus;
   statusHistory: { status: OrderStatus; at: string }[];
+  dhlStatusHistory?: { status: DHLStatus; at: string; description?: string }[];
+  externalTrackingNumber?: string;
+  carrierName?: string;
   serviceType: ServiceType;
   isInternational: boolean;
   packageDescription: string;
@@ -186,3 +200,14 @@ export const COUNTRY_OPTIONS = [
   "Kenya",
   "Other",
 ];
+
+export const DHL_STATUS_LABELS: Record<DHLStatus, string> = {
+  shipment_picked_up: "Shipment Picked Up",
+  in_transit: "In Transit",
+  out_for_delivery: "Out for Delivery",
+  delivered: "Delivered",
+  failed_delivery_attempt: "Failed Delivery Attempt",
+  returned: "Returned to Shipper",
+  customs_cleared: "Customs Cleared",
+  exception: "Exception",
+};
