@@ -11,8 +11,6 @@ import {
   SERVICE_TYPE_LABELS,
   STATUS_LABELS,
   COUNTRY_OPTIONS,
-  DHLStatus,
-  DHL_STATUS_LABELS,
 } from "@/types";
 import StatusBadge from "@/components/ui/statusbadge";
 import {
@@ -39,6 +37,8 @@ import {
   Plus,
   Camera,
   Check,
+  Search,
+  X,
 } from "lucide-react";
 
 interface Driver {
@@ -180,7 +180,7 @@ function getStatusOptionsForOrder(order: OrderClient): OrderStatus[] {
 }
 
 /*
- * Added only for dashboard categorisation.
+ * Dashboard categories.
  *
  * local / ecommerce / errand / corporate
  *      -> Local Deliveries
@@ -188,21 +188,32 @@ function getStatusOptionsForOrder(order: OrderClient): OrderStatus[] {
  * interstate
  *      -> Interstate Deliveries
  *
- * international / dhl_express
+ * international
  *      -> International Cargo
+ *
+ * dhl_express
+ *      -> DHL Express
  */
+type OrderCategory =
+  | "all"
+  | "local"
+  | "interstate"
+  | "international"
+  | "dhl_express";
+
 function getOrderCategory(
   serviceType: ServiceType
-): "local" | "interstate" | "international" {
+): Exclude<OrderCategory, "all"> {
   if (serviceType === "interstate") {
     return "interstate";
   }
 
-  if (
-    serviceType === "international" ||
-    serviceType === "dhl_express"
-  ) {
+  if (serviceType === "international") {
     return "international";
+  }
+
+  if (serviceType === "dhl_express") {
+    return "dhl_express";
   }
 
   return "local";
@@ -323,12 +334,16 @@ export default function AdminDashboard() {
     useState<DateFilterValue>("today");
 
   /*
-   * NEW:
    * Controls which type of order is shown in the dashboard.
    */
-  const [orderCategory, setOrderCategory] = useState<
-    "all" | "local" | "interstate" | "international"
-  >("all");
+  const [orderCategory, setOrderCategory] =
+    useState<OrderCategory>("all");
+
+  /*
+   * NEW:
+   * Admin customer/order search.
+   */
+  const [customerSearch, setCustomerSearch] = useState("");
 
   const [uploadingPhotoFor, setUploadingPhotoFor] = useState<
     string | null
@@ -351,9 +366,8 @@ export default function AdminDashboard() {
     Record<string, string>
   >({});
 
-  const [savingDhlStatusFor, setSavingDhlStatusFor] = useState<
-    string | null
-  >(null);
+  const [savingDhlStatusFor, setSavingDhlStatusFor] =
+    useState<string | null>(null);
 
   const pickupFileInputRef = useRef<HTMLInputElement | null>(null);
   const deliveryFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -731,18 +745,94 @@ export default function AdminDashboard() {
   /*
    * Filter the orders BEFORE grouping them by date.
    *
-   * This is what prevents Local, Interstate and International
-   * orders from being mixed together when a category is selected.
+   * Delivered orders are intentionally removed from the
+   * active admin queue.
    */
   const filteredOrders = filterOrdersByDate(
     orders,
     dateFilter
   ).filter((order) => {
-    if (orderCategory === "all") return true;
+    /*
+     * IMPORTANT:
+     * Once delivered, the shipment leaves the active queue.
+     */
+    if (order.status === "delivered") {
+      return false;
+    }
 
-    return (
-      getOrderCategory(order.serviceType) === orderCategory
-    );
+    /*
+     * Category filter.
+     */
+    if (orderCategory !== "all") {
+      if (
+        getOrderCategory(order.serviceType) !==
+        orderCategory
+      ) {
+        return false;
+      }
+    }
+
+    /*
+     * Customer/order search.
+     *
+     * Searches:
+     * - customer name
+     * - sender name
+     * - customer phone
+     * - sender phone
+     * - customer email
+     * - tracking number
+     * - package description
+     * - recipient name
+     * - recipient phone
+     */
+    const search = customerSearch.trim().toLowerCase();
+
+    if (!search) {
+      return true;
+    }
+
+    const customerName =
+      order.customer?.name || "";
+
+    const senderName =
+      order.senderName || "";
+
+    const customerPhone =
+      order.customer?.phone || "";
+
+    const senderPhone =
+      order.senderPhone || "";
+
+    const customerEmail =
+      order.customer?.email || "";
+
+    const trackingNumber =
+      order.trackingNumber || "";
+
+    const packageDescription =
+      order.packageDescription || "";
+
+    const recipientName =
+      order.recipientName || "";
+
+    const recipientPhone =
+      order.recipientPhone || "";
+
+    return [
+      customerName,
+      senderName,
+      customerPhone,
+      senderPhone,
+      customerEmail,
+      trackingNumber,
+      packageDescription,
+      recipientName,
+      recipientPhone,
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(search);
   });
 
   return (
@@ -813,7 +903,7 @@ export default function AdminDashboard() {
         {[
           {
             value: "all",
-            label: "All Orders",
+            label: "All Active Orders",
           },
           {
             value: "local",
@@ -827,6 +917,10 @@ export default function AdminDashboard() {
             value: "international",
             label: "International Cargo",
           },
+          {
+            value: "dhl_express",
+            label: "DHL Express",
+          },
         ].map((tab) => {
           const active =
             orderCategory === tab.value;
@@ -837,11 +931,7 @@ export default function AdminDashboard() {
               type="button"
               onClick={() =>
                 setOrderCategory(
-                  tab.value as
-                    | "all"
-                    | "local"
-                    | "interstate"
-                    | "international"
+                  tab.value as OrderCategory
                 )
               }
               className={`rounded-md px-4 py-2 text-sm font-medium transition ${
@@ -857,6 +947,44 @@ export default function AdminDashboard() {
       </div>
 
       {/* =====================================================
+          CUSTOMER SEARCH
+          ===================================================== */}
+      <div className="mt-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+
+          <input
+            type="search"
+            value={customerSearch}
+            onChange={(e) =>
+              setCustomerSearch(e.target.value)
+            }
+            placeholder="Search customer by name, phone, email, tracking number..."
+            className="w-full rounded-md border border-neutral-300 bg-white py-2 pl-9 pr-10 text-sm outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+          />
+
+          {customerSearch && (
+            <button
+              type="button"
+              onClick={() =>
+                setCustomerSearch("")
+              }
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+              aria-label="Clear customer search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {customerSearch.trim() && (
+          <p className="mt-1 text-xs text-neutral-500">
+            Showing results for "{customerSearch}"
+          </p>
+        )}
+      </div>
+
+      {/* =====================================================
           ORDER LIST
           ===================================================== */}
       <div className="mt-4 space-y-6">
@@ -869,7 +997,7 @@ export default function AdminDashboard() {
         {orders.length > 0 &&
           filteredOrders.length === 0 && (
             <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
-              No orders in this category for this day.
+              No active orders match your search, category, or date filter.
             </p>
           )}
 
@@ -889,25 +1017,38 @@ export default function AdminDashboard() {
                 const isUploadingThis =
                   uploadingPhotoFor === o._id;
 
+                const customerHeading =
+                  o.customer?.name ||
+                  o.senderName ||
+                  "Walk-in Customer";
+
                 return (
                   <div
                     key={o._id}
                     className="rounded-lg border border-neutral-200 bg-white p-4"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-mono text-xs font-semibold tracking-wide text-neutral-500">
-                          #{o.trackingNumber}
+                      <div className="min-w-0">
+                        {/* =================================================
+                            CUSTOMER NAME IS NOW THE MAIN HEADING
+                            ================================================= */}
+                        <p className="text-lg font-bold text-neutral-900">
+                          {customerHeading}
                         </p>
 
+                        {/* Package description follows customer name */}
                         <Link
                           href={`/orders/${o._id}`}
-                          className="mt-0.5 block font-medium text-neutral-900 hover:underline"
+                          className="mt-0.5 block font-medium text-neutral-800 hover:underline"
                         >
                           {o.packageDescription}
                         </Link>
 
-                        <div className="mt-1.5 space-y-1 text-sm text-neutral-500">
+                        <p className="mt-1 font-mono text-xs font-semibold tracking-wide text-neutral-500">
+                          #{o.trackingNumber}
+                        </p>
+
+                        <div className="mt-2 space-y-1 text-sm text-neutral-500">
                           <p className="flex items-start gap-1.5">
                             <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
 
@@ -1195,16 +1336,69 @@ export default function AdminDashboard() {
                       <div className="flex flex-col items-end gap-1.5">
                         <StatusBadge status={o.status} />
 
+                        {/* =================================================
+                            CLEAR IN-TRANSIT / DELIVERY INDICATORS
+                            ================================================= */}
+                        {o.status === "in_transit" && (
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                            IN TRANSIT
+                          </span>
+                        )}
+
+                        {o.status === "out_for_delivery" && (
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
+                            OUT FOR DELIVERY
+                          </span>
+                        )}
+
+                        {o.status === "delivered" && (
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                            DELIVERED
+                          </span>
+                        )}
+
                         {o.isAdminCreated && (
                           <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[11px] font-medium text-white">
                             Walk-in
                           </span>
                         )}
 
-                        {o.isInternational && (
-                          <span className="flex items-center gap-1 rounded-full bg-black px-2 py-0.5 text-[11px] font-medium text-white">
+                        {/* =================================================
+                            INTERNATIONAL CARGO / DHL DIFFERENTIATION
+                            ================================================= */}
+                        {o.serviceType ===
+                          "international" && (
+                          <span className="flex items-center gap-1 rounded-full bg-purple-700 px-2 py-0.5 text-[11px] font-medium text-white">
                             <Globe2 className="h-3 w-3" />
-                            Intl
+                            International Cargo
+                          </span>
+                        )}
+
+                        {o.serviceType ===
+                          "dhl_express" && (
+                          <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-medium text-white">
+                            <Globe2 className="h-3 w-3" />
+                            DHL Express
+                          </span>
+                        )}
+
+                        {o.serviceType ===
+                          "interstate" && (
+                          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                            Interstate
+                          </span>
+                        )}
+
+                        {(o.serviceType ===
+                          "local" ||
+                          o.serviceType ===
+                            "ecommerce" ||
+                          o.serviceType ===
+                            "errand" ||
+                          o.serviceType ===
+                            "corporate") && (
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
+                            Local
                           </span>
                         )}
                       </div>
