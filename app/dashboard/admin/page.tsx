@@ -1192,6 +1192,7 @@ export default function AdminDashboard() {
                                 />
 
                                 <button
+                                  type="button"
                                   onClick={() =>
                                     saveCarrierTracking(
                                       o._id
@@ -1333,6 +1334,7 @@ export default function AdminDashboard() {
                                 />
 
                                 <button
+                                  type="button"
                                   onClick={() =>
                                     saveDhlStatus(o._id)
                                   }
