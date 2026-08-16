@@ -50,10 +50,11 @@ const COMPLETED_STATUSES = new Set([
 function whatsappLink(trackingNumber?: string) {
   const trackingUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/track${trackingNumber
-        ? `?number=${encodeURIComponent(trackingNumber)}`
-        : ""
-      }`
+      ? `${window.location.origin}/track${
+          trackingNumber
+            ? `?number=${encodeURIComponent(trackingNumber)}`
+            : ""
+        }`
       : "";
 
   const message = trackingNumber
@@ -67,7 +68,9 @@ function whatsappLink(trackingNumber?: string) {
 
 /**
  * Human-friendly service label.
- * This deliberately keeps International Cargo and DHL Express separate.
+ *
+ * International Cargo and DHL Express are deliberately
+ * kept as separate service types.
  */
 function getServiceLabel(serviceType: ServiceType) {
   switch (serviceType) {
@@ -99,6 +102,9 @@ function getServiceLabel(serviceType: ServiceType) {
 
 /**
  * Different visual treatment for each delivery type.
+ *
+ * International Cargo = orange
+ * DHL Express = red
  */
 function getServiceBadge(serviceType: ServiceType) {
   switch (serviceType) {
@@ -148,11 +154,15 @@ export default function CustomerDashboard() {
   }, [user, loading, router]);
 
   const fetchOrders = useCallback(async () => {
-    const res = await fetch("/api/orders");
+    try {
+      const res = await fetch("/api/orders");
 
-    if (res.ok) {
-      const data = await res.json();
-      setOrders(data.orders);
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data.orders);
+      }
+    } catch (error) {
+      console.error("Failed to fetch orders:", error);
     }
   }, []);
 
@@ -175,7 +185,7 @@ export default function CustomerDashboard() {
   /**
    * Completed orders.
    *
-   * These are still available to the customer for tracking/history,
+   * These remain available under order history,
    * but they no longer clutter the active delivery queue.
    */
   const completedOrders = useMemo(
@@ -200,7 +210,9 @@ export default function CustomerDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm text-neutral-500">Welcome back</p>
+          <p className="text-sm text-neutral-500">
+            Welcome back
+          </p>
 
           <h1 className="text-2xl font-bold text-neutral-900">
             {user.name}
@@ -332,17 +344,13 @@ export default function CustomerDashboard() {
         </section>
       )}
 
-      {/* GENERAL WHATSAPP BUTTON */}
-      <a
-        href={whatsappLink()}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="Chat with CityBike Logistics on WhatsApp"
-        className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full bg-green-600 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-green-700 hover:shadow-xl"
-      >
-        <MessageCircle className="h-5 w-5" />
-        Chat with us
-      </a>
+      {/*
+        The general floating WhatsApp button has intentionally
+        been removed from the customer dashboard.
+
+        WhatsApp is still available inside the order flow when
+        a WhatsApp-priced delivery requires it.
+      */}
     </div>
   );
 }
@@ -359,19 +367,20 @@ function OrderCard({
   return (
     <Link
       href={`/orders/${o._id}`}
-      className={`block rounded-lg border bg-white p-4 transition ${completed
+      className={`block rounded-lg border bg-white p-4 transition ${
+        completed
           ? "border-green-100 hover:border-green-300"
           : "border-neutral-200 hover:border-orange-300"
-        }`}
+      }`}
     >
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          {/* CUSTOMER NAME IS NOW THE MAIN HEADING */}
+          {/* CUSTOMER NAME IS THE MAIN HEADING */}
           <p className="font-semibold text-neutral-900">
             {customerName}
           </p>
 
-          {/* Package description is secondary information */}
+          {/* PACKAGE DESCRIPTION FOLLOWS CUSTOMER NAME */}
           <p className="mt-0.5 truncate text-sm text-neutral-500">
             {o.packageDescription}
           </p>
@@ -426,10 +435,11 @@ function OrderCard({
           {/* INTERNATIONAL INDICATOR */}
           {o.isInternational && (
             <span
-              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${o.serviceType === "dhl_express"
+              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                o.serviceType === "dhl_express"
                   ? "bg-red-100 text-red-700"
                   : "bg-orange-100 text-orange-700"
-                }`}
+              }`}
             >
               <Globe2 className="h-3 w-3" />
 
@@ -582,8 +592,9 @@ function NewOrderForm({
 
           recipientName,
 
-          recipientPhone: `${recipientPhoneCode || "+234"
-            }${recipientPhone}`,
+          recipientPhone: `${
+            recipientPhoneCode || "+234"
+          }${recipientPhone}`,
 
           recipientPhoneCode:
             recipientPhoneCode || "+234",
@@ -710,7 +721,7 @@ function NewOrderForm({
           </div>
         ) : (
           createdOrder.paymentMethod ===
-          "bank_transfer" &&
+            "bank_transfer" &&
           !uploadDone && (
             <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-left">
               <h3 className="text-sm font-semibold text-orange-800">
@@ -945,9 +956,9 @@ function NewOrderForm({
             onChange={(e) =>
               setPackageSize(
                 e.target.value as
-                | "small"
-                | "medium"
-                | "large"
+                  | "small"
+                  | "medium"
+                  | "large"
               )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
@@ -1037,8 +1048,8 @@ function NewOrderForm({
             onChange={(e) =>
               setPaymentMethod(
                 e.target.value as
-                | "bank_transfer"
-                | "paystack"
+                  | "bank_transfer"
+                  | "paystack"
               )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"

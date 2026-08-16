@@ -399,11 +399,29 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      fetchOrders();
-      fetchDrivers();
-    }
-  }, [user, fetchOrders, fetchDrivers]);
+    if (!user) return;
+
+    void (async () => {
+      try {
+        const [ordersRes, driversRes] = await Promise.all([
+          fetch("/api/orders"),
+          fetch("/api/drivers"),
+        ]);
+
+        if (ordersRes.ok) {
+          const data = await ordersRes.json();
+          setOrders(data.orders);
+        }
+
+        if (driversRes.ok) {
+          const driverData = await driversRes.json();
+          setDrivers(driverData.drivers);
+        }
+      } catch {
+        // Ignore fetch failures; the page will remain in the current state.
+      }
+    })();
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -979,7 +997,7 @@ export default function AdminDashboard() {
 
         {customerSearch.trim() && (
           <p className="mt-1 text-xs text-neutral-500">
-            Showing results for "{customerSearch}"
+            Showing results for '{customerSearch}'
           </p>
         )}
       </div>
@@ -1212,7 +1230,11 @@ export default function AdminDashboard() {
                                   <div className="mt-2 space-y-2 border-t border-blue-100 pt-2">
                                     {o.dhlStatusHistory.map(
                                       (
-                                        h: any,
+                                        h: {
+                                          status: string;
+                                          at: string | Date;
+                                          description?: string;
+                                        },
                                         idx: number
                                       ) => (
                                         <div
@@ -1245,7 +1267,8 @@ export default function AdminDashboard() {
                                 )}
 
                               <div className="mt-2 space-y-2">
-                                <select
+                                <input
+                                  list={`dhl-status-options-${o._id}`}
                                   value={
                                     dhlStatusInputs[
                                       o._id
@@ -1260,11 +1283,10 @@ export default function AdminDashboard() {
                                       })
                                     )
                                   }
+                                  placeholder="Type or choose DHL status..."
                                   className="w-full rounded-md border border-blue-300 px-2 py-1 text-xs"
-                                >
-                                  <option value="">
-                                    Select DHL status...
-                                  </option>
+                                />
+                                <datalist id={`dhl-status-options-${o._id}`}>
                                   <option value="shipment_picked_up">
                                     Shipment Picked Up
                                   </option>
@@ -1289,7 +1311,7 @@ export default function AdminDashboard() {
                                   <option value="exception">
                                     Exception
                                   </option>
-                                </select>
+                                </datalist>
 
                                 <input
                                   value={
@@ -1821,7 +1843,7 @@ function AdminCreateOrderForm({
         return;
       }
 
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         customerEmail,
         senderName,
         senderPhone,
