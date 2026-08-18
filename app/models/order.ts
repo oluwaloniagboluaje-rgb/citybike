@@ -46,6 +46,15 @@ export type DHLStatus =
   | "customs_cleared"
   | "exception";
 
+export type InternationalStatus =
+  | "shipment_picked_up"
+  | "in_transit"
+  | "cleared_customs"
+  | "out_for_delivery"
+  | "delivered"
+  | "delayed"
+  | "exception";
+
 export interface ILocationPoint {
   address: string;
   city: string;
@@ -59,54 +68,121 @@ export interface ILocationPoint {
 export interface IOrder extends Document {
   trackingNumber: string;
   customer?: Types.ObjectId;
+
   senderName?: string;
   senderPhone?: string;
   isAdminCreated?: boolean;
+
   driver?: Types.ObjectId;
+
   pickup: ILocationPoint;
   dropoff: ILocationPoint;
+
   serviceType: ServiceType;
   isInternational: boolean;
+
   packageDescription: string;
   packageSize: "small" | "medium" | "large";
   weightKg?: number;
+
   recipientName: string;
   recipientPhone: string;
   recipientPhoneCode?: string;
+
   pickupTime: Date;
   eta?: Date;
+
   status: OrderStatus;
-  statusHistory: { status: OrderStatus; at: Date }[];
-  dhlStatusHistory?: { status: DHLStatus; at: Date; description?: string }[];
+
+  statusHistory: {
+    status: OrderStatus;
+    at: Date;
+  }[];
+
+  dhlStatusHistory?: {
+    status: DHLStatus;
+    at: Date;
+    description?: string;
+  }[];
+
+  internationalStatusHistory?: {
+    status: InternationalStatus;
+    at: Date;
+    description?: string;
+  }[];
+
   price?: number;
-  lastLocation?: { lat: number; lng: number; updatedAt: Date };
-  locationHistory?: { lat: number; lng: number; updatedAt: Date }[];
+
+  lastLocation?: {
+    lat: number;
+    lng: number;
+    updatedAt: Date;
+  };
+
+  locationHistory?: {
+    lat: number;
+    lng: number;
+    updatedAt: Date;
+  }[];
+
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
+
   proofOfPaymentUrl?: string;
+
   pickupPhotoUrl?: string;
   deliveryPhotoUrl?: string;
+
   // Internal reference to the tracking number issued by an external
-  // carrier (e.g. DHL) actually handling the physical shipment. Never
-  // exposed to the customer or on the public tracking page — customers
-  // only ever see the CityBike tracking number.
+  // carrier such as DHL.
+  //
+  // Customers only see the CityBike tracking number.
   externalTrackingNumber?: string;
   carrierName?: string;
+
   createdAt: Date;
   updatedAt: Date;
 }
 
 const LocationPointSchema = new Schema<ILocationPoint>(
   {
-    address: { type: String, required: true },
-    city: { type: String, required: true },
-    country: { type: String, required: true, default: "Nigeria" },
-    state: { type: String },
-    postalCode: { type: String },
-    lat: { type: Number, required: true },
-    lng: { type: Number, required: true },
+    address: {
+      type: String,
+      required: true,
+    },
+
+    city: {
+      type: String,
+      required: true,
+    },
+
+    country: {
+      type: String,
+      required: true,
+      default: "Nigeria",
+    },
+
+    state: {
+      type: String,
+    },
+
+    postalCode: {
+      type: String,
+    },
+
+    lat: {
+      type: Number,
+      required: true,
+    },
+
+    lng: {
+      type: Number,
+      required: true,
+    },
   },
-  { _id: false }
+  {
+    _id: false,
+  }
 );
 
 const OrderSchema = new Schema<IOrder>(
@@ -125,6 +201,7 @@ const OrderSchema = new Schema<IOrder>(
     },
 
     senderName: String,
+
     senderPhone: String,
 
     isAdminCreated: {
@@ -190,7 +267,9 @@ const OrderSchema = new Schema<IOrder>(
       required: true,
     },
 
-    recipientPhoneCode: { type: String },
+    recipientPhoneCode: {
+      type: String,
+    },
 
     pickupTime: {
       type: Date,
@@ -211,8 +290,8 @@ const OrderSchema = new Schema<IOrder>(
         "ready_for_shipping",
         "left_origin",
         "in_transit",
-          "landed",
-          "customs_processing",
+        "landed",
+        "customs_processing",
         "confirmed",
         "assigned",
         "assigned_courier",
@@ -235,6 +314,7 @@ const OrderSchema = new Schema<IOrder>(
           type: String,
           required: true,
         },
+
         at: {
           type: Date,
           default: Date.now,
@@ -242,6 +322,9 @@ const OrderSchema = new Schema<IOrder>(
       },
     ],
 
+    /*
+     * DHL EXPRESS TRACKING HISTORY
+     */
     dhlStatusHistory: [
       {
         status: {
@@ -257,11 +340,48 @@ const OrderSchema = new Schema<IOrder>(
             "exception",
           ],
         },
+
         at: {
           type: Date,
           default: Date.now,
         },
-        description: String,
+
+        description: {
+          type: String,
+        },
+      },
+    ],
+
+    /*
+     * INTERNATIONAL CARGO TRACKING HISTORY
+     *
+     * Every time an admin updates the international shipment,
+     * a new entry is added here.
+     */
+    internationalStatusHistory: [
+      {
+        status: {
+          type: String,
+          enum: [
+            "shipment_picked_up",
+            "in_transit",
+            "cleared_customs",
+            "out_for_delivery",
+            "delivered",
+            "delayed",
+            "exception",
+          ],
+          required: true,
+        },
+
+        at: {
+          type: Date,
+          default: Date.now,
+        },
+
+        description: {
+          type: String,
+        },
       },
     ],
 
@@ -296,9 +416,11 @@ const OrderSchema = new Schema<IOrder>(
     proofOfPaymentUrl: String,
 
     pickupPhotoUrl: String,
+
     deliveryPhotoUrl: String,
 
     externalTrackingNumber: String,
+
     carrierName: String,
   },
   {
@@ -307,6 +429,7 @@ const OrderSchema = new Schema<IOrder>(
 );
 
 const Order =
-  mongoose.models.Order || mongoose.model<IOrder>("Order", OrderSchema);
+  mongoose.models.Order ||
+  mongoose.model<IOrder>("Order", OrderSchema);
 
 export default Order;

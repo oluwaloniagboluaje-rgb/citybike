@@ -18,6 +18,8 @@ import {
   MessageCircle,
   PackageCheck,
   Truck,
+  Plane,
+  Boxes,
 } from "lucide-react";
 import { uploadPaymentProof } from "@/libs/uploadPaymentProof";
 import { geocodeAddress } from "@/libs/geocode";
@@ -31,15 +33,16 @@ import OrderDateFilter from "@/components/orders/OrderDateFilter";
 // Company WhatsApp line.
 const WHATSAPP_NUMBER = "2349152661473";
 
+/**
+ * Only these services use the WhatsApp pricing flow.
+ */
 const WHATSAPP_PRICED_TYPES = new Set<ServiceType>([
   "local",
   "interstate",
 ]);
 
 /**
- * These statuses mean the shipment is completed.
- * Completed shipments are removed from the active queue
- * and shown separately under "Completed Deliveries".
+ * Completed shipment statuses.
  */
 const COMPLETED_STATUSES = new Set([
   "delivered",
@@ -47,6 +50,11 @@ const COMPLETED_STATUSES = new Set([
   "delivered_by_courier",
 ]);
 
+/**
+ * ---------------------------------------------------------
+ * WHATSAPP
+ * ---------------------------------------------------------
+ */
 function whatsappLink(trackingNumber?: string) {
   const trackingUrl =
     typeof window !== "undefined"
@@ -67,10 +75,12 @@ function whatsappLink(trackingNumber?: string) {
 }
 
 /**
- * Human-friendly service label.
+ * ---------------------------------------------------------
+ * SERVICE LABELS
+ * ---------------------------------------------------------
  *
- * International Cargo and DHL Express are deliberately
- * kept as separate service types.
+ * International Cargo and DHL Express are intentionally
+ * separate everywhere in the customer dashboard.
  */
 function getServiceLabel(serviceType: ServiceType) {
   switch (serviceType) {
@@ -101,7 +111,9 @@ function getServiceLabel(serviceType: ServiceType) {
 }
 
 /**
- * Different visual treatment for each delivery type.
+ * ---------------------------------------------------------
+ * SERVICE BADGE
+ * ---------------------------------------------------------
  *
  * International Cargo = orange
  * DHL Express = red
@@ -134,10 +146,94 @@ function getServiceBadge(serviceType: ServiceType) {
   }
 }
 
+/**
+ * ---------------------------------------------------------
+ * TRACKING TYPE
+ * ---------------------------------------------------------
+ *
+ * IMPORTANT:
+ *
+ * We do NOT use a generic "international" tracking type.
+ *
+ * International Cargo and DHL Express have their own
+ * tracking identity.
+ */
+function getTrackingType(serviceType: ServiceType) {
+  switch (serviceType) {
+    case "international":
+      return "international_cargo";
+
+    case "dhl_express":
+      return "dhl_express";
+
+    default:
+      return "standard";
+  }
+}
+
+/**
+ * Human-readable tracking title.
+ */
+function getTrackingTitle(serviceType: ServiceType) {
+  switch (getTrackingType(serviceType)) {
+    case "international_cargo":
+      return "International Cargo Tracking";
+
+    case "dhl_express":
+      return "DHL Express Tracking";
+
+    default:
+      return "Delivery Tracking";
+  }
+}
+
+/**
+ * Tracking badge shown on the customer dashboard.
+ *
+ * These are deliberately different.
+ */
+function TrackingTypeBadge({
+  serviceType,
+}: {
+  serviceType: ServiceType;
+}) {
+  const trackingType = getTrackingType(serviceType);
+
+  if (trackingType === "international_cargo") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
+        <Boxes className="h-3 w-3" />
+        Cargo Tracking
+      </span>
+    );
+  }
+
+  if (trackingType === "dhl_express") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+        <Plane className="h-3 w-3" />
+        DHL Express Tracking
+      </span>
+    );
+  }
+
+  return null;
+}
+
+/**
+ * ---------------------------------------------------------
+ * COMPLETED
+ * ---------------------------------------------------------
+ */
 function isCompletedOrder(order: OrderClient) {
   return COMPLETED_STATUSES.has(order.status);
 }
 
+/**
+ * ---------------------------------------------------------
+ * MAIN CUSTOMER DASHBOARD
+ * ---------------------------------------------------------
+ */
 export default function CustomerDashboard() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -168,14 +264,13 @@ export default function CustomerDashboard() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (user) fetchOrders();
+    if (user) {
+      fetchOrders();
+    }
   }, [user, fetchOrders]);
 
   /**
    * Active orders.
-   *
-   * Delivered orders are deliberately excluded from this list.
-   * This keeps the customer dashboard queue clean.
    */
   const activeOrders = useMemo(
     () => orders.filter((order) => !isCompletedOrder(order)),
@@ -184,16 +279,15 @@ export default function CustomerDashboard() {
 
   /**
    * Completed orders.
-   *
-   * These remain available under order history,
-   * but they no longer clutter the active delivery queue.
    */
   const completedOrders = useMemo(
     () => orders.filter((order) => isCompletedOrder(order)),
     [orders]
   );
 
-  if (loading || !user) return null;
+  if (loading || !user) {
+    return null;
+  }
 
   const filteredActiveOrders = filterOrdersByDate(
     activeOrders,
@@ -207,7 +301,7 @@ export default function CustomerDashboard() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      {/* Header */}
+      {/* HEADER */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-sm text-neutral-500">
@@ -232,6 +326,7 @@ export default function CustomerDashboard() {
         </button>
       </div>
 
+      {/* NEW ORDER FORM */}
       {showForm && (
         <NewOrderForm
           onCreated={() => {
@@ -343,18 +438,15 @@ export default function CustomerDashboard() {
           )}
         </section>
       )}
-
-      {/*
-        The general floating WhatsApp button has intentionally
-        been removed from the customer dashboard.
-
-        WhatsApp is still available inside the order flow when
-        a WhatsApp-priced delivery requires it.
-      */}
     </div>
   );
 }
 
+/**
+ * =========================================================
+ * ORDER CARD
+ * =========================================================
+ */
 function OrderCard({
   order: o,
   customerName,
@@ -364,6 +456,8 @@ function OrderCard({
   customerName: string;
   completed?: boolean;
 }) {
+  const trackingType = getTrackingType(o.serviceType);
+
   return (
     <Link
       href={`/orders/${o._id}`}
@@ -375,20 +469,22 @@ function OrderCard({
     >
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          {/* CUSTOMER NAME IS THE MAIN HEADING */}
+          {/* CUSTOMER NAME */}
           <p className="font-semibold text-neutral-900">
             {customerName}
           </p>
 
-          {/* PACKAGE DESCRIPTION FOLLOWS CUSTOMER NAME */}
+          {/* PACKAGE DESCRIPTION */}
           <p className="mt-0.5 truncate text-sm text-neutral-500">
             {o.packageDescription}
           </p>
 
+          {/* TRACKING NUMBER */}
           <p className="mt-1 font-mono text-xs font-semibold tracking-wide text-neutral-400">
             #{o.trackingNumber}
           </p>
 
+          {/* ROUTE */}
           <p className="mt-2 flex items-center gap-1 text-sm text-neutral-500">
             <MapPin className="h-3.5 w-3.5" />
 
@@ -399,20 +495,48 @@ function OrderCard({
               : ""}
           </p>
 
+          {/* DRIVER */}
           {o.driver && (
             <p className="mt-1 text-sm text-neutral-500">
               Driver: {o.driver.name}
             </p>
           )}
 
+          {/* ETA */}
           {o.eta && !completed && (
             <p className="mt-1 text-sm text-neutral-500">
               ETA: {new Date(o.eta).toLocaleString()}
             </p>
           )}
+
+          {/* ------------------------------------------------
+              TRACKING TYPE
+              ------------------------------------------------
+
+              International Cargo:
+                Cargo Tracking
+
+              DHL Express:
+                DHL Express Tracking
+
+              Standard deliveries:
+                Nothing shown here
+          */}
+          {trackingType !== "standard" && (
+            <div className="mt-3">
+              <TrackingTypeBadge
+                serviceType={o.serviceType}
+              />
+
+              <p className="mt-1 text-[11px] text-neutral-400">
+                {getTrackingTitle(o.serviceType)}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {/* STATUS */}
           <StatusBadge status={o.status} />
 
           {/* SERVICE TYPE */}
@@ -432,20 +556,28 @@ function OrderCard({
               </span>
             )}
 
-          {/* INTERNATIONAL INDICATOR */}
-          {o.isInternational && (
-            <span
-              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                o.serviceType === "dhl_express"
-                  ? "bg-red-100 text-red-700"
-                  : "bg-orange-100 text-orange-700"
-              }`}
-            >
-              <Globe2 className="h-3 w-3" />
+          {/* ------------------------------------------------
+              INTERNATIONAL SERVICE INDICATOR
+              ------------------------------------------------
 
-              {o.serviceType === "dhl_express"
-                ? "DHL"
-                : "Cargo"}
+              IMPORTANT:
+              We no longer use one generic international
+              indicator.
+
+              International Cargo gets its own UI.
+              DHL Express gets its own UI.
+          */}
+          {o.serviceType === "international" && (
+            <span className="flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-700">
+              <Boxes className="h-3 w-3" />
+              International Cargo
+            </span>
+          )}
+
+          {o.serviceType === "dhl_express" && (
+            <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700">
+              <Plane className="h-3 w-3" />
+              DHL Express
             </span>
           )}
         </div>
@@ -454,6 +586,11 @@ function OrderCard({
   );
 }
 
+/**
+ * =========================================================
+ * CREATED ORDER
+ * =========================================================
+ */
 interface CreatedOrder {
   _id: string;
   trackingNumber: string;
@@ -462,6 +599,11 @@ interface CreatedOrder {
   price?: number;
 }
 
+/**
+ * =========================================================
+ * NEW ORDER FORM
+ * =========================================================
+ */
 function NewOrderForm({
   onCreated,
 }: {
@@ -513,6 +655,11 @@ function NewOrderForm({
   const [uploading, setUploading] = useState(false);
   const [uploadDone, setUploadDone] = useState(false);
 
+  /**
+   * International Cargo and DHL Express are both
+   * international destinations, but they remain separate
+   * service types.
+   */
   const isInternational =
     dropoffCountry.trim().toLowerCase() !== "nigeria";
 
@@ -529,6 +676,9 @@ function NewOrderForm({
       let pickupLoc;
       let dropoffLoc;
 
+      /**
+       * PICKUP GEOCODING
+       */
       try {
         pickupLoc = await geocodeAddress(
           pickupAddress,
@@ -542,6 +692,9 @@ function NewOrderForm({
         return;
       }
 
+      /**
+       * DROPOFF GEOCODING
+       */
       try {
         dropoffLoc = await geocodeAddress(
           dropoffAddress,
@@ -555,6 +708,14 @@ function NewOrderForm({
         return;
       }
 
+      /**
+       * CREATE ORDER
+       *
+       * serviceType is sent exactly as selected.
+       *
+       * "international" remains International Cargo.
+       * "dhl_express" remains DHL Express.
+       */
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: {
@@ -566,7 +727,8 @@ function NewOrderForm({
             city: pickupCity,
             country: "Nigeria",
             state: pickupState || undefined,
-            postalCode: pickupPostalCode || undefined,
+            postalCode:
+              pickupPostalCode || undefined,
             lat: pickupLoc.lat,
             lng: pickupLoc.lng,
           },
@@ -576,13 +738,16 @@ function NewOrderForm({
             city: dropoffCity,
             country: dropoffCountry,
             state: dropoffState || undefined,
-            postalCode: dropoffPostalCode || undefined,
+            postalCode:
+              dropoffPostalCode || undefined,
             lat: dropoffLoc.lat,
             lng: dropoffLoc.lng,
           },
 
           serviceType,
+
           packageDescription,
+
           packageSize,
 
           weightKg:
@@ -617,7 +782,9 @@ function NewOrderForm({
       }
 
       if (!res.ok || !data.order) {
-        setError(data.error || "Could not create order");
+        setError(
+          data.error || "Could not create order"
+        );
         return;
       }
 
@@ -634,6 +801,9 @@ function NewOrderForm({
     }
   }
 
+  /**
+   * PAYMENT PROOF UPLOAD
+   */
   async function handleProofUpload(file: File) {
     if (!createdOrder) return;
 
@@ -673,6 +843,9 @@ function NewOrderForm({
     }
   }
 
+  /**
+   * ORDER CREATED
+   */
   if (createdOrder) {
     return (
       <div className="mt-4 space-y-4 rounded-lg border border-green-200 bg-green-50 p-5 text-center">
@@ -701,9 +874,9 @@ function NewOrderForm({
             </h3>
 
             <p className="mt-1 text-sm text-neutral-600">
-              Chat with us directly — we&apos;ll let you know
-              the delivery fee and confirm payment for your
-              order there.
+              Chat with us directly — we&apos;ll let you
+              know the delivery fee and confirm payment
+              for your order there.
             </p>
 
             <a
@@ -712,7 +885,9 @@ function NewOrderForm({
               )}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => setTimeout(onCreated, 500)}
+              onClick={() =>
+                setTimeout(onCreated, 500)
+              }
               className="mt-3 inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
             >
               <MessageCircle className="h-4 w-4" />
@@ -749,8 +924,8 @@ function NewOrderForm({
               </div>
 
               <p className="mt-2 text-xs text-orange-700">
-                ✅ Please send payment confirmation after
-                transfer to{" "}
+                ✅ Please send payment confirmation
+                after transfer to{" "}
                 <a
                   href="mailto:Citybikelogistics1@gmail.com"
                   className="underline"
@@ -791,19 +966,23 @@ function NewOrderForm({
 
         {uploadDone && (
           <p className="mt-2 text-sm text-green-700">
-            Proof uploaded! We&apos;ll confirm your payment
-            shortly.
+            Proof uploaded! We&apos;ll confirm your
+            payment shortly.
           </p>
         )}
       </div>
     );
   }
 
+  /**
+   * NEW ORDER FORM
+   */
   return (
     <form
       onSubmit={handleSubmit}
       className="mt-4 space-y-4 rounded-lg border border-neutral-200 bg-white p-5"
     >
+      {/* SERVICE TYPE */}
       <div>
         <label className="mb-1 block text-sm font-medium text-neutral-700">
           Service type
@@ -812,7 +991,9 @@ function NewOrderForm({
         <select
           value={serviceType}
           onChange={(e) =>
-            setServiceType(e.target.value as ServiceType)
+            setServiceType(
+              e.target.value as ServiceType
+            )
           }
           className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
         >
@@ -826,6 +1007,7 @@ function NewOrderForm({
         </select>
       </div>
 
+      {/* PICKUP / DROPOFF */}
       <div className="grid gap-4 sm:grid-cols-2">
         <fieldset className="space-y-2 rounded-md border border-neutral-200 p-3">
           <legend className="px-1 text-xs font-semibold text-neutral-500">
@@ -873,7 +1055,8 @@ function NewOrderForm({
 
         <fieldset className="space-y-2 rounded-md border border-neutral-200 p-3">
           <legend className="px-1 text-xs font-semibold text-neutral-500">
-            DROP-OFF {isInternational && "(International)"}
+            DROP-OFF{" "}
+            {isInternational && "(International)"}
           </legend>
 
           <input
@@ -930,6 +1113,7 @@ function NewOrderForm({
         </fieldset>
       </div>
 
+      {/* PACKAGE DETAILS */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium text-neutral-700">
@@ -969,6 +1153,7 @@ function NewOrderForm({
           </select>
         </div>
 
+        {/* WEIGHT FOR INTERNATIONAL SHIPMENTS */}
         {isInternational && (
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">
@@ -989,6 +1174,7 @@ function NewOrderForm({
           </div>
         )}
 
+        {/* RECIPIENT */}
         <div>
           <label className="mb-1 block text-sm font-medium text-neutral-700">
             Recipient name
@@ -1004,6 +1190,7 @@ function NewOrderForm({
           />
         </div>
 
+        {/* PHONE */}
         <div>
           <label className="mb-1 block text-sm font-medium text-neutral-700">
             Recipient phone
@@ -1031,11 +1218,12 @@ function NewOrderForm({
         </div>
       </div>
 
+      {/* PAYMENT */}
       {isWhatsAppFlow ? (
         <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
           No price shown here — you&apos;ll be told the
-          delivery fee and can arrange payment directly on
-          WhatsApp after you submit.
+          delivery fee and can arrange payment directly
+          on WhatsApp after you submit.
         </div>
       ) : (
         <div>
@@ -1065,10 +1253,12 @@ function NewOrderForm({
         </div>
       )}
 
+      {/* ERROR */}
       {error && (
         <p className="text-sm text-red-600">{error}</p>
       )}
 
+      {/* SUBMIT */}
       <button
         type="submit"
         disabled={submitting}
