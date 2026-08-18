@@ -46,6 +46,18 @@ export type DHLStatus =
   | "customs_cleared"
   | "exception";
 
+/**
+ * International cargo tracking statuses
+ */
+export type InternationalStatus =
+  | "shipment_picked_up"
+  | "in_transit"
+  | "cleared_customs"
+  | "out_for_delivery"
+  | "delivered"
+  | "delayed"
+  | "exception";
+
 export interface LocationPoint {
   address: string;
   city: string;
@@ -59,36 +71,84 @@ export interface LocationPoint {
 export interface OrderClient {
   _id: string;
   trackingNumber: string;
-  customer: { _id: string; name: string; phone: string; email: string } | null;
+
+  customer: {
+    _id: string;
+    name: string;
+    phone: string;
+    email: string;
+  } | null;
+
   senderName?: string;
   senderPhone?: string;
   isAdminCreated?: boolean;
-  driver?: { _id: string; name: string; phone: string } | null;
+
+  driver: {
+    _id: string;
+    name: string;
+    phone: string;
+  } | null;
+
   pickup: LocationPoint;
   dropoff: LocationPoint;
+
   serviceType: ServiceType;
   isInternational: boolean;
+
   packageDescription: string;
   packageSize: "small" | "medium" | "large";
   weightKg?: number;
+
   recipientName: string;
   recipientPhone: string;
   recipientPhoneCode?: string;
+
   pickupTime: string;
   eta?: string;
+
   status: OrderStatus;
-  statusHistory: { status: OrderStatus; at: string }[];
-  dhlStatusHistory?: { status: DHLStatus; at: string; description?: string }[];
+
+  statusHistory: {
+    status: OrderStatus;
+    at: string;
+  }[];
+
+  dhlStatusHistory?: {
+    status: DHLStatus;
+    at: string;
+    description?: string;
+  }[];
+
+  internationalStatusHistory?: {
+    status: InternationalStatus;
+    at: string;
+    description?: string;
+  }[];
+
   price?: number;
-  lastLocation?: { lat: number; lng: number; updatedAt: string };
-  locationHistory?: { lat: number; lng: number; updatedAt: string }[];
+
+  lastLocation?: {
+    lat: number;
+    lng: number;
+    updatedAt: string;
+  };
+
+  locationHistory?: {
+    lat: number;
+    lng: number;
+    updatedAt: string;
+  }[];
+
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
+
   proofOfPaymentUrl?: string;
   pickupPhotoUrl?: string;
   deliveryPhotoUrl?: string;
+
   externalTrackingNumber?: string;
   carrierName?: string;
+
   createdAt: string;
   updatedAt: string;
 }
@@ -96,21 +156,64 @@ export interface OrderClient {
 export interface PublicTrackingResult {
   id?: string;
   trackingNumber: string;
+
   status: OrderStatus;
-  statusHistory: { status: OrderStatus; at: string }[];
-  dhlStatusHistory?: { status: DHLStatus; at: string; description?: string }[];
+
+  statusHistory: {
+    status: OrderStatus;
+    at: string;
+  }[];
+
+  dhlStatusHistory?: {
+    status: DHLStatus;
+    at: string;
+    description?: string;
+  }[];
+
+  internationalStatusHistory?: {
+    status: InternationalStatus;
+    at: string;
+    description?: string;
+  }[];
+
   externalTrackingNumber?: string;
   carrierName?: string;
+
   serviceType: ServiceType;
   isInternational: boolean;
+
   packageDescription: string;
   recipientName: string;
+
   pickupTime: string;
   eta?: string;
-  pickup: { city: string; country: string; lat: number; lng: number };
-  dropoff: { city: string; country: string; lat: number; lng: number };
-  locationHistory?: { lat: number; lng: number; updatedAt: string }[];
-  lastLocation?: { lat: number; lng: number; updatedAt: string } | null;
+
+  pickup: {
+    city: string;
+    country: string;
+    lat: number;
+    lng: number;
+  };
+
+  dropoff: {
+    city: string;
+    country: string;
+    lat: number;
+    lng: number;
+  };
+
+  locationHistory?: {
+    lat: number;
+    lng: number;
+    updatedAt: string;
+  }[];
+
+  lastLocation?: {
+    lat: number;
+    lng: number;
+    updatedAt: string;
+  } | null;
+
   createdAt: string;
 }
 
@@ -209,5 +312,18 @@ export const DHL_STATUS_LABELS: Record<DHLStatus, string> = {
   failed_delivery_attempt: "Failed Delivery Attempt",
   returned: "Returned to Shipper",
   customs_cleared: "Customs Cleared",
+  exception: "Exception",
+};
+
+export const INTERNATIONAL_STATUS_LABELS: Record<
+  InternationalStatus,
+  string
+> = {
+  shipment_picked_up: "Shipment Picked Up",
+  in_transit: "In Transit",
+  cleared_customs: "Cleared Customs",
+  out_for_delivery: "Out for Delivery",
+  delivered: "Delivered",
+  delayed: "Delayed",
   exception: "Exception",
 };

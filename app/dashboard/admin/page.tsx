@@ -49,6 +49,12 @@ interface Driver {
   isAvailable?: boolean;
 }
 
+interface StatusHistoryItem {
+  status: string;
+  at: string | Date;
+  description?: string;
+}
+
 const NEXT_STATUS: Partial<
   Record<OrderStatus, { next: OrderStatus; label: string }>
 > = {
@@ -179,21 +185,6 @@ function getStatusOptionsForOrder(order: OrderClient): OrderStatus[] {
   );
 }
 
-/*
- * Dashboard categories.
- *
- * local / ecommerce / errand / corporate
- *      -> Local Deliveries
- *
- * interstate
- *      -> Interstate Deliveries
- *
- * international
- *      -> International Cargo
- *
- * dhl_express
- *      -> DHL Express
- */
 type OrderCategory =
   | "all"
   | "local"
@@ -222,6 +213,8 @@ function getOrderCategory(
 function toWhatsAppDigits(rawPhone: string): string {
   const digits = rawPhone.replace(/\D/g, "");
 
+  if (!digits) return "";
+
   if (digits.startsWith("234")) return digits;
 
   if (digits.startsWith("0")) {
@@ -233,9 +226,13 @@ function toWhatsAppDigits(rawPhone: string): string {
 
 function trackingUrlFor(trackingNumber: string): string {
   const origin =
-    typeof window !== "undefined" ? window.location.origin : "";
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "";
 
-  return `${origin}/track?number=${encodeURIComponent(trackingNumber)}`;
+  return `${origin}/track?number=${encodeURIComponent(
+    trackingNumber
+  )}`;
 }
 
 function statusMessageFor(order: OrderClient): string {
@@ -279,33 +276,47 @@ function statusMessageFor(order: OrderClient): string {
 }
 
 function recipientWhatsAppLink(order: OrderClient): string {
-  const message = `Hi ${order.recipientName}, this is CityBike Logistics with an update on your delivery. ${statusMessageFor(
+  const message = `Hi ${
+    order.recipientName
+  }, this is CityBike Logistics with an update on your delivery. ${statusMessageFor(
     order
-  )} Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrlFor(
+  )} Tracking number: #${
+    order.trackingNumber
+  }. Track it here: ${trackingUrlFor(
     order.trackingNumber
   )}`;
 
   const to = toWhatsAppDigits(order.recipientPhone);
 
-  return `https://wa.me/${to}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${to}?text=${encodeURIComponent(
+    message
+  )}`;
 }
 
 function senderWhatsAppLink(order: OrderClient): string {
   const senderName =
-    order.senderName || order.customer?.name || "there";
+    order.senderName ||
+    order.customer?.name ||
+    "there";
 
   const message = `Hi ${senderName}, this is CityBike Logistics with an update on your order. ${statusMessageFor(
     order
-  )} Tracking number: #${order.trackingNumber}. Track it here: ${trackingUrlFor(
+  )} Tracking number: #${
+    order.trackingNumber
+  }. Track it here: ${trackingUrlFor(
     order.trackingNumber
   )}`;
 
   const phone =
-    order.senderPhone || order.customer?.phone || "";
+    order.senderPhone ||
+    order.customer?.phone ||
+    "";
 
   const to = toWhatsAppDigits(phone);
 
-  return `https://wa.me/${to}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${to}?text=${encodeURIComponent(
+    message
+  )}`;
 }
 
 export default function AdminDashboard() {
@@ -323,31 +334,26 @@ export default function AdminDashboard() {
     Record<string, string>
   >({});
 
-  const [newOrderPing, setNewOrderPing] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState<string | null>(
-    null
-  );
+  const [newOrderPing, setNewOrderPing] =
+    useState(false);
 
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [updatingStatus, setUpdatingStatus] =
+    useState<string | null>(null);
+
+  const [showCreateForm, setShowCreateForm] =
+    useState(false);
 
   const [dateFilter, setDateFilter] =
     useState<DateFilterValue>("today");
 
-  /*
-   * Controls which type of order is shown in the dashboard.
-   */
   const [orderCategory, setOrderCategory] =
     useState<OrderCategory>("all");
 
-  /*
-   * NEW:
-   * Admin customer/order search.
-   */
-  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerSearch, setCustomerSearch] =
+    useState("");
 
-  const [uploadingPhotoFor, setUploadingPhotoFor] = useState<
-    string | null
-  >(null);
+  const [uploadingPhotoFor, setUploadingPhotoFor] =
+    useState<string | null>(null);
 
   const [modal, setModal] =
     useState<StatusModalState>(CLOSED_MODAL);
@@ -358,43 +364,72 @@ export default function AdminDashboard() {
   const [savingCarrierTrackingFor, setSavingCarrierTrackingFor] =
     useState<string | null>(null);
 
-  const [dhlStatusInputs, setDhlStatusInputs] = useState<
-    Record<string, string>
-  >({});
+  const [dhlStatusInputs, setDhlStatusInputs] =
+    useState<Record<string, string>>({});
 
-  const [dhlDescriptionInputs, setDhlDescriptionInputs] = useState<
-    Record<string, string>
-  >({});
+  const [dhlDescriptionInputs, setDhlDescriptionInputs] =
+    useState<Record<string, string>>({});
 
   const [savingDhlStatusFor, setSavingDhlStatusFor] =
     useState<string | null>(null);
 
-  const pickupFileInputRef = useRef<HTMLInputElement | null>(null);
-  const deliveryFileInputRef = useRef<HTMLInputElement | null>(null);
+  /*
+   * INTERNATIONAL CARGO STATUS UPDATE
+   */
+  const [internationalStatusInputs, setInternationalStatusInputs] =
+    useState<Record<string, string>>({});
 
-  const activeOrderIdRef = useRef<string | null>(null);
+  const [
+    internationalDescriptionInputs,
+    setInternationalDescriptionInputs,
+  ] = useState<Record<string, string>>({});
+
+  const [
+    savingInternationalStatusFor,
+    setSavingInternationalStatusFor,
+  ] = useState<string | null>(null);
+
+  const pickupFileInputRef =
+    useRef<HTMLInputElement | null>(null);
+
+  const deliveryFileInputRef =
+    useRef<HTMLInputElement | null>(null);
+
+  const activeOrderIdRef =
+    useRef<string | null>(null);
 
   useEffect(() => {
-    if (!loading && (!user || user.role !== "admin")) {
+    if (
+      !loading &&
+      (!user || user.role !== "admin")
+    ) {
       router.push("/login");
     }
   }, [user, loading, router]);
 
   const fetchOrders = useCallback(async () => {
-    const res = await fetch("/api/orders");
+    try {
+      const res = await fetch("/api/orders");
 
-    if (res.ok) {
-      const data = await res.json();
-      setOrders(data.orders);
+      if (res.ok) {
+        const data = await res.json();
+        setOrders(data.orders || []);
+      }
+    } catch {
+      // Keep current state if fetching fails.
     }
   }, []);
 
   const fetchDrivers = useCallback(async () => {
-    const res = await fetch("/api/drivers");
+    try {
+      const res = await fetch("/api/drivers");
 
-    if (res.ok) {
-      const data = await res.json();
-      setDrivers(data.drivers);
+      if (res.ok) {
+        const data = await res.json();
+        setDrivers(data.drivers || []);
+      }
+    } catch {
+      // Keep current state if fetching fails.
     }
   }, []);
 
@@ -403,22 +438,25 @@ export default function AdminDashboard() {
 
     void (async () => {
       try {
-        const [ordersRes, driversRes] = await Promise.all([
-          fetch("/api/orders"),
-          fetch("/api/drivers"),
-        ]);
+        const [ordersRes, driversRes] =
+          await Promise.all([
+            fetch("/api/orders"),
+            fetch("/api/drivers"),
+          ]);
 
         if (ordersRes.ok) {
           const data = await ordersRes.json();
-          setOrders(data.orders);
+          setOrders(data.orders || []);
         }
 
         if (driversRes.ok) {
-          const driverData = await driversRes.json();
-          setDrivers(driverData.drivers);
+          const driverData =
+            await driversRes.json();
+
+          setDrivers(driverData.drivers || []);
         }
       } catch {
-        // Ignore fetch failures; the page will remain in the current state.
+        // Ignore fetch failures.
       }
     })();
   }, [user]);
@@ -431,12 +469,18 @@ export default function AdminDashboard() {
     );
 
     channel
-      .on("broadcast", { event: "new-order" }, () => {
-        setNewOrderPing(true);
-        fetchOrders();
+      .on(
+        "broadcast",
+        { event: "new-order" },
+        () => {
+          setNewOrderPing(true);
+          void fetchOrders();
 
-        setTimeout(() => setNewOrderPing(false), 4000);
-      })
+          setTimeout(() => {
+            setNewOrderPing(false);
+          }, 4000);
+        }
+      )
       .subscribe();
 
     return () => {
@@ -445,17 +489,31 @@ export default function AdminDashboard() {
   }, [user, fetchOrders]);
 
   async function confirmOrder(orderId: string) {
-    await fetch(`/api/orders/${orderId}/status`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        status: "confirmed",
-      }),
-    });
+    try {
+      const res = await fetch(
+        `/api/orders/${orderId}/status`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: "confirmed",
+          }),
+        }
+      );
 
-    fetchOrders();
+      if (res.ok) {
+        await fetchOrders();
+      }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Could not confirm order",
+        message: "Please check your connection and try again.",
+      });
+    }
   }
 
   async function cancelOrder(orderId: string) {
@@ -465,17 +523,31 @@ export default function AdminDashboard() {
 
     if (!confirmCancel) return;
 
-    await fetch(`/api/orders/${orderId}/status`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        status: "cancelled",
-      }),
-    });
+    try {
+      const res = await fetch(
+        `/api/orders/${orderId}/status`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: "cancelled",
+          }),
+        }
+      );
 
-    fetchOrders();
+      if (res.ok) {
+        await fetchOrders();
+      }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Could not cancel order",
+        message: "Please check your connection and try again.",
+      });
+    }
   }
 
   async function advanceStatus(
@@ -485,17 +557,41 @@ export default function AdminDashboard() {
     setUpdatingStatus(orderId);
 
     try {
-      const res = await fetch(`/api/orders/${orderId}/status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          status: nextStatus,
-        }),
-      });
+      const res = await fetch(
+        `/api/orders/${orderId}/status`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: nextStatus,
+          }),
+        }
+      );
 
-      if (res.ok) fetchOrders();
+      if (res.ok) {
+        await fetchOrders();
+      } else {
+        const data = await res.json().catch(() => ({}));
+
+        setModal({
+          open: true,
+          variant: "error",
+          title: "Could not update status",
+          message:
+            data.error ||
+            "Failed to update status.",
+        });
+      }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Could not update status",
+        message:
+          "Please check your connection and try again.",
+      });
     } finally {
       setUpdatingStatus(null);
     }
@@ -506,70 +602,128 @@ export default function AdminDashboard() {
 
     if (!driverId) return;
 
-    const res = await fetch(`/api/orders/${orderId}/assign`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        driverId,
-      }),
-    });
-
-    if (res.ok) fetchOrders();
-  }
-
-  async function setCustomStatus(orderId: string) {
-    const status = selectedStatus[orderId];
-
-    if (!status) return;
-
-    setUpdatingStatus(orderId);
-
     try {
-      const res = await fetch(`/api/orders/${orderId}/status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          status,
-        }),
-      });
+      const res = await fetch(
+        `/api/orders/${orderId}/assign`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            driverId,
+          }),
+        }
+      );
 
       if (res.ok) {
-        fetchOrders();
+        await fetchOrders();
       } else {
         const data = await res.json().catch(() => ({}));
 
         setModal({
           open: true,
           variant: "error",
-          title: "Could not update status",
+          title: "Could not assign driver",
           message:
-            data.error || "Failed to update status.",
+            data.error ||
+            "Failed to assign driver.",
         });
       }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Could not assign driver",
+        message:
+          "Please check your connection and try again.",
+      });
+    }
+  }
+
+  async function setCustomStatus(orderId: string) {
+    const status =
+      selectedStatus[orderId];
+
+    if (!status) return;
+
+    setUpdatingStatus(orderId);
+
+    try {
+      const res = await fetch(
+        `/api/orders/${orderId}/status`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status,
+          }),
+        }
+      );
+
+      if (res.ok) {
+        setSelectedStatus((prev) => ({
+          ...prev,
+          [orderId]: "",
+        }));
+
+        await fetchOrders();
+      } else {
+        const data = await res
+          .json()
+          .catch(() => ({}));
+
+        setModal({
+          open: true,
+          variant: "error",
+          title: "Could not update status",
+          message:
+            data.error ||
+            "Failed to update status.",
+        });
+      }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Could not update status",
+        message:
+          "Please check your connection and try again.",
+      });
     } finally {
       setUpdatingStatus(null);
     }
   }
 
   async function markAsPaid(orderId: string) {
-    const res = await fetch(
-      `/api/orders/${orderId}/payment-status`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          paymentStatus: "paid",
-        }),
-      }
-    );
+    try {
+      const res = await fetch(
+        `/api/orders/${orderId}/payment-status`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            paymentStatus: "paid",
+          }),
+        }
+      );
 
-    if (res.ok) fetchOrders();
+      if (res.ok) {
+        await fetchOrders();
+      }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Could not update payment",
+        message:
+          "Please check your connection and try again.",
+      });
+    }
   }
 
   function triggerPickupPhoto(orderId: string) {
@@ -587,7 +741,8 @@ export default function AdminDashboard() {
     stage: "pickup" | "delivery"
   ) {
     const file = e.target.files?.[0];
-    const orderId = activeOrderIdRef.current;
+    const orderId =
+      activeOrderIdRef.current;
 
     e.target.value = "";
 
@@ -596,11 +751,12 @@ export default function AdminDashboard() {
     setUploadingPhotoFor(orderId);
 
     try {
-      const photoUrl = await uploadPackagePhoto(
-        orderId,
-        stage,
-        file
-      );
+      const photoUrl =
+        await uploadPackagePhoto(
+          orderId,
+          stage,
+          file
+        );
 
       const res = await fetch(
         `/api/orders/${orderId}/photos`,
@@ -617,7 +773,7 @@ export default function AdminDashboard() {
       );
 
       if (res.ok) {
-        fetchOrders();
+        await fetchOrders();
 
         setModal({
           open: true,
@@ -626,7 +782,9 @@ export default function AdminDashboard() {
           message: `The ${stage} photo was uploaded successfully.`,
         });
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = await res
+          .json()
+          .catch(() => ({}));
 
         setModal({
           open: true,
@@ -652,8 +810,11 @@ export default function AdminDashboard() {
     }
   }
 
-  async function saveCarrierTracking(orderId: string) {
-    const value = carrierTrackingInputs[orderId]?.trim();
+  async function saveCarrierTracking(
+    orderId: string
+  ) {
+    const value =
+      carrierTrackingInputs[orderId]?.trim();
 
     if (!value) return;
 
@@ -675,7 +836,7 @@ export default function AdminDashboard() {
       );
 
       if (res.ok) {
-        fetchOrders();
+        await fetchOrders();
 
         setModal({
           open: true,
@@ -685,22 +846,34 @@ export default function AdminDashboard() {
             "This is stored for internal reference only and is never shown to the customer.",
         });
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = await res
+          .json()
+          .catch(() => ({}));
 
         setModal({
           open: true,
           variant: "error",
           title: "Could not save",
-          message: data.error || "Please try again.",
+          message:
+            data.error || "Please try again.",
         });
       }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Could not save",
+        message:
+          "Please check your connection and try again.",
+      });
     } finally {
       setSavingCarrierTrackingFor(null);
     }
   }
 
   async function saveDhlStatus(orderId: string) {
-    const status = dhlStatusInputs[orderId]?.trim();
+    const status =
+      dhlStatusInputs[orderId]?.trim();
 
     if (!status) return;
 
@@ -717,14 +890,15 @@ export default function AdminDashboard() {
           body: JSON.stringify({
             status,
             description:
-              dhlDescriptionInputs[orderId]?.trim() ||
-              undefined,
+              dhlDescriptionInputs[
+                orderId
+              ]?.trim() || undefined,
           }),
         }
       );
 
       if (res.ok) {
-        fetchOrders();
+        await fetchOrders();
 
         setDhlStatusInputs((prev) => ({
           ...prev,
@@ -744,43 +918,136 @@ export default function AdminDashboard() {
             "The customer will see this update on their tracking page.",
         });
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = await res
+          .json()
+          .catch(() => ({}));
 
         setModal({
           open: true,
           variant: "error",
           title: "Could not update DHL status",
-          message: data.error || "Please try again.",
+          message:
+            data.error || "Please try again.",
         });
       }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Could not update DHL status",
+        message:
+          "Please check your connection and try again.",
+      });
     } finally {
       setSavingDhlStatusFor(null);
     }
   }
 
+  /*
+   * INTERNATIONAL CARGO STATUS + DESCRIPTION
+   *
+   * This uses the existing order status endpoint and
+   * sends the description together with the selected
+   * international status.
+   */
+  async function saveInternationalStatus(
+    orderId: string
+  ) {
+    const status =
+      internationalStatusInputs[
+        orderId
+      ]?.trim();
+
+    const description =
+      internationalDescriptionInputs[
+        orderId
+      ]?.trim();
+
+    if (!status) return;
+
+    setSavingInternationalStatusFor(orderId);
+
+    try {
+      const res = await fetch(
+        `/api/orders/${orderId}/status`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status,
+            description:
+              description || undefined,
+          }),
+        }
+      );
+
+      if (res.ok) {
+        await fetchOrders();
+
+        setInternationalStatusInputs(
+          (prev) => ({
+            ...prev,
+            [orderId]: "",
+          })
+        );
+
+        setInternationalDescriptionInputs(
+          (prev) => ({
+            ...prev,
+            [orderId]: "",
+          })
+        );
+
+        setModal({
+          open: true,
+          variant: "success",
+          title: "International cargo status updated",
+          message:
+            "The international cargo status has been updated successfully.",
+        });
+      } else {
+        const data = await res
+          .json()
+          .catch(() => ({}));
+
+        setModal({
+          open: true,
+          variant: "error",
+          title:
+            "Could not update international cargo status",
+          message:
+            data.error ||
+            "Please try again.",
+        });
+      }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title:
+          "Could not update international cargo status",
+        message:
+          "Please check your connection and try again.",
+      });
+    } finally {
+      setSavingInternationalStatusFor(
+        null
+      );
+    }
+  }
+
   if (loading || !user) return null;
 
-  /*
-   * Filter the orders BEFORE grouping them by date.
-   *
-   * Delivered orders are intentionally removed from the
-   * active admin queue.
-   */
   const filteredOrders = filterOrdersByDate(
     orders,
     dateFilter
   ).filter((order) => {
-    /*
-     * IMPORTANT:
-     * Once delivered, the shipment leaves the active queue.
-     */
     if (order.status === "delivered") {
       return false;
     }
 
-    /*
-     * Category filter.
-     */
     if (orderCategory !== "all") {
       if (
         getOrderCategory(order.serviceType) !==
@@ -790,21 +1057,8 @@ export default function AdminDashboard() {
       }
     }
 
-    /*
-     * Customer/order search.
-     *
-     * Searches:
-     * - customer name
-     * - sender name
-     * - customer phone
-     * - sender phone
-     * - customer email
-     * - tracking number
-     * - package description
-     * - recipient name
-     * - recipient phone
-     */
-    const search = customerSearch.trim().toLowerCase();
+    const search =
+      customerSearch.trim().toLowerCase();
 
     if (!search) {
       return true;
@@ -890,6 +1144,7 @@ export default function AdminDashboard() {
         </div>
 
         <button
+          type="button"
           onClick={() =>
             setShowCreateForm((s) => !s)
           }
@@ -904,7 +1159,7 @@ export default function AdminDashboard() {
         <AdminCreateOrderForm
           onCreated={() => {
             setShowCreateForm(false);
-            fetchOrders();
+            void fetchOrders();
           }}
         />
       )}
@@ -914,9 +1169,6 @@ export default function AdminDashboard() {
         onChange={setDateFilter}
       />
 
-      {/* =====================================================
-          ORDER CATEGORY FILTER
-          ===================================================== */}
       <div className="mt-4 flex flex-wrap gap-2">
         {[
           {
@@ -964,9 +1216,6 @@ export default function AdminDashboard() {
         })}
       </div>
 
-      {/* =====================================================
-          CUSTOMER SEARCH
-          ===================================================== */}
       <div className="mt-4">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
@@ -997,14 +1246,12 @@ export default function AdminDashboard() {
 
         {customerSearch.trim() && (
           <p className="mt-1 text-xs text-neutral-500">
-            Showing results for '{customerSearch}'
+            Showing results for '
+            {customerSearch}'
           </p>
         )}
       </div>
 
-      {/* =====================================================
-          ORDER LIST
-          ===================================================== */}
       <div className="mt-4 space-y-6">
         {orders.length === 0 && (
           <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
@@ -1015,712 +1262,999 @@ export default function AdminDashboard() {
         {orders.length > 0 &&
           filteredOrders.length === 0 && (
             <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
-              No active orders match your search, category, or date filter.
+              No active orders match your search,
+              category, or date filter.
             </p>
           )}
 
-        {groupByDate(filteredOrders).map((group) => (
-          <div key={group.label}>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              {group.label}
-            </h2>
+        {groupByDate(filteredOrders).map(
+          (group) => (
+            <div key={group.label}>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                {group.label}
+              </h2>
 
-            <div className="space-y-3">
-              {group.items.map((o) => {
-                const nextAction =
-                  o.serviceType === "interstate"
-                    ? INTERSTATE_NEXT_STATUS[o.status]
-                    : NEXT_STATUS[o.status];
+              <div className="space-y-3">
+                {group.items.map((o) => {
+                  const nextAction =
+                    o.serviceType ===
+                    "interstate"
+                      ? INTERSTATE_NEXT_STATUS[
+                          o.status
+                        ]
+                      : NEXT_STATUS[o.status];
 
-                const isUploadingThis =
-                  uploadingPhotoFor === o._id;
+                  const isUploadingThis =
+                    uploadingPhotoFor ===
+                    o._id;
 
-                const customerHeading =
-                  o.customer?.name ||
-                  o.senderName ||
-                  "Walk-in Customer";
+                  const customerHeading =
+                    o.customer?.name ||
+                    o.senderName ||
+                    "Walk-in Customer";
 
-                return (
-                  <div
-                    key={o._id}
-                    className="rounded-lg border border-neutral-200 bg-white p-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        {/* =================================================
-                            CUSTOMER NAME IS NOW THE MAIN HEADING
-                            ================================================= */}
-                        <p className="text-lg font-bold text-neutral-900">
-                          {customerHeading}
-                        </p>
+                  const internationalHistory =
+                    (
+                      o as OrderClient & {
+                        internationalStatusHistory?: StatusHistoryItem[];
+                      }
+                    )
+                      .internationalStatusHistory ||
+                    [];
 
-                        {/* Package description follows customer name */}
-                        <Link
-                          href={`/orders/${o._id}`}
-                          className="mt-0.5 block font-medium text-neutral-800 hover:underline"
-                        >
-                          {o.packageDescription}
-                        </Link>
+                  return (
+                    <div
+                      key={o._id}
+                      className="rounded-lg border border-neutral-200 bg-white p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-lg font-bold text-neutral-900">
+                            {customerHeading}
+                          </p>
 
-                        <p className="mt-1 font-mono text-xs font-semibold tracking-wide text-neutral-500">
-                          #{o.trackingNumber}
-                        </p>
+                          <Link
+                            href={`/orders/${o._id}`}
+                            className="mt-0.5 block font-medium text-neutral-800 hover:underline"
+                          >
+                            {o.packageDescription}
+                          </Link>
 
-                        <div className="mt-2 space-y-1 text-sm text-neutral-500">
-                          <p className="flex items-start gap-1.5">
-                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
+                          <p className="mt-1 font-mono text-xs font-semibold tracking-wide text-neutral-500">
+                            #{o.trackingNumber}
+                          </p>
 
-                            <span>
-                              <span className="font-medium text-neutral-600">
-                                Pickup:
-                              </span>{" "}
-                              {o.pickup.address},{" "}
-                              {o.pickup.city}
-                              {o.pickup.country !==
+                          <div className="mt-2 space-y-1 text-sm text-neutral-500">
+                            <p className="flex items-start gap-1.5">
+                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
+
+                              <span>
+                                <span className="font-medium text-neutral-600">
+                                  Pickup:
+                                </span>{" "}
+                                {o.pickup.address},{" "}
+                                {o.pickup.city}
+                                {o.pickup.country !==
                                 "Nigeria"
-                                ? `, ${o.pickup.country}`
-                                : ""}
-                            </span>
-                          </p>
-
-                          <p className="flex items-start gap-1.5">
-                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-
-                            <span>
-                              <span className="font-medium text-neutral-600">
-                                Drop-off:
-                              </span>{" "}
-                              {o.dropoff.address},{" "}
-                              {o.dropoff.city}
-                              {o.isInternational
-                                ? `, ${o.dropoff.country}`
-                                : ""}
-                            </span>
-                          </p>
-                        </div>
-
-                        {o.eta && (
-                          <p className="mt-1 text-sm text-neutral-500">
-                            ETA:{" "}
-                            {new Date(
-                              o.eta
-                            ).toLocaleString()}
-                          </p>
-                        )}
-
-                        <p className="mt-1 text-sm text-neutral-500">
-                          Sender:{" "}
-                          {o.customer
-                            ? `${o.customer.name} (${o.customer.phone})`
-                            : o.senderName
-                            ? `${o.senderName} (${o.senderPhone}) — walk-in`
-                            : "Unknown"}
-                        </p>
-
-                        <p className="mt-1 text-sm text-neutral-500">
-                          Recipient: {o.recipientName} (
-                          {o.recipientPhone})
-                        </p>
-
-                        {o.driver && (
-                          <p className="mt-1 text-sm text-neutral-500">
-                            Driver: {o.driver.name}
-                          </p>
-                        )}
-
-                        {(o.serviceType ===
-                          "dhl_express" ||
-                          o.serviceType ===
-                            "international") && (
-                          <div className="mt-2 rounded-md bg-neutral-50 p-2">
-                            <p className="text-xs font-medium text-neutral-500">
-                              Carrier tracking (internal only —
-                              not shown to customer)
+                                  ? `, ${o.pickup.country}`
+                                  : ""}
+                              </span>
                             </p>
 
-                            {o.externalTrackingNumber ? (
-                              <p className="mt-1 flex items-center gap-2 text-sm text-neutral-700">
-                                <span className="font-mono">
-                                  {o.carrierName ||
-                                    "DHL"}
-                                  :{" "}
-                                  {
-                                    o.externalTrackingNumber
-                                  }
-                                </span>
+                            <p className="flex items-start gap-1.5">
+                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
 
-                                <button
-                                  onClick={() =>
-                                    setCarrierTrackingInputs(
-                                      (prev) => ({
-                                        ...prev,
-                                        [o._id]:
-                                          o.externalTrackingNumber ||
-                                          "",
-                                      })
-                                    )
-                                  }
-                                  className="text-xs font-medium text-orange-600 underline"
-                                >
-                                  Edit
-                                </button>
+                              <span>
+                                <span className="font-medium text-neutral-600">
+                                  Drop-off:
+                                </span>{" "}
+                                {o.dropoff.address},{" "}
+                                {o.dropoff.city}
+                                {o.isInternational
+                                  ? `, ${o.dropoff.country}`
+                                  : ""}
+                              </span>
+                            </p>
+                          </div>
+
+                          {o.eta && (
+                            <p className="mt-1 text-sm text-neutral-500">
+                              ETA:{" "}
+                              {new Date(
+                                o.eta
+                              ).toLocaleString()}
+                            </p>
+                          )}
+
+                          <p className="mt-1 text-sm text-neutral-500">
+                            Sender:{" "}
+                            {o.customer
+                              ? `${o.customer.name} (${o.customer.phone})`
+                              : o.senderName
+                              ? `${o.senderName} (${o.senderPhone}) — walk-in`
+                              : "Unknown"}
+                          </p>
+
+                          <p className="mt-1 text-sm text-neutral-500">
+                            Recipient:{" "}
+                            {o.recipientName} (
+                            {o.recipientPhone})
+                          </p>
+
+                          {o.driver && (
+                            <p className="mt-1 text-sm text-neutral-500">
+                              Driver:{" "}
+                              {o.driver.name}
+                            </p>
+                          )}
+
+                          {(o.serviceType ===
+                            "dhl_express" ||
+                            o.serviceType ===
+                              "international") && (
+                            <div className="mt-2 rounded-md bg-neutral-50 p-2">
+                              <p className="text-xs font-medium text-neutral-500">
+                                Carrier tracking
+                                (internal only —
+                                not shown to
+                                customer)
                               </p>
-                            ) : null}
 
-                            {(carrierTrackingInputs[
-                              o._id
-                            ] !== undefined ||
-                              !o.externalTrackingNumber) && (
-                              <div className="mt-1 flex items-center gap-2">
-                                <input
-                                  value={
-                                    carrierTrackingInputs[
-                                      o._id
-                                    ] ?? ""
-                                  }
-                                  onChange={(e) =>
-                                    setCarrierTrackingInputs(
-                                      (prev) => ({
-                                        ...prev,
-                                        [o._id]:
-                                          e.target.value,
-                                      })
-                                    )
-                                  }
-                                  placeholder="Enter DHL tracking number"
-                                  className="w-full rounded-md border border-neutral-300 px-2 py-1 text-xs"
-                                />
+                              {o.externalTrackingNumber ? (
+                                <p className="mt-1 flex items-center gap-2 text-sm text-neutral-700">
+                                  <span className="font-mono">
+                                    {o.carrierName ||
+                                      "DHL"}
+                                    :{" "}
+                                    {
+                                      o.externalTrackingNumber
+                                    }
+                                  </span>
 
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    saveCarrierTracking(
-                                      o._id
-                                    )
-                                  }
-                                  disabled={
-                                    savingCarrierTrackingFor ===
-                                      o._id ||
-                                    !carrierTrackingInputs[
-                                      o._id
-                                    ]?.trim()
-                                  }
-                                  className="shrink-0 rounded-md bg-neutral-800 px-2 py-1 text-xs font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
-                                >
-                                  {savingCarrierTrackingFor ===
-                                  o._id
-                                    ? "Saving..."
-                                    : "Save"}
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setCarrierTrackingInputs(
+                                        (prev) => ({
+                                          ...prev,
+                                          [o._id]:
+                                            o.externalTrackingNumber ||
+                                            "",
+                                        })
+                                      )
+                                    }
+                                    className="text-xs font-medium text-orange-600 underline"
+                                  >
+                                    Edit
+                                  </button>
+                                </p>
+                              ) : null}
+
+                              {(carrierTrackingInputs[
+                                o._id
+                              ] !== undefined ||
+                                !o.externalTrackingNumber) && (
+                                <div className="mt-1 flex items-center gap-2">
+                                  <input
+                                    value={
+                                      carrierTrackingInputs[
+                                        o._id
+                                      ] ?? ""
+                                    }
+                                    onChange={(e) =>
+                                      setCarrierTrackingInputs(
+                                        (prev) => ({
+                                          ...prev,
+                                          [o._id]:
+                                            e.target
+                                              .value,
+                                        })
+                                      )
+                                    }
+                                    placeholder="Enter DHL tracking number"
+                                    className="w-full rounded-md border border-neutral-300 px-2 py-1 text-xs"
+                                  />
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void saveCarrierTracking(
+                                        o._id
+                                      )
+                                    }
+                                    disabled={
+                                      savingCarrierTrackingFor ===
+                                        o._id ||
+                                      !carrierTrackingInputs[
+                                        o._id
+                                      ]?.trim()
+                                    }
+                                    className="shrink-0 rounded-md bg-neutral-800 px-2 py-1 text-xs font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+                                  >
+                                    {savingCarrierTrackingFor ===
+                                    o._id
+                                      ? "Saving..."
+                                      : "Save"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* =================================================
+                              DHL EXPRESS STATUS PANEL
+                              ================================================= */}
+                          {o.externalTrackingNumber &&
+                            o.carrierName ===
+                              "DHL" &&
+                            o.serviceType ===
+                              "dhl_express" && (
+                              <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs font-bold uppercase tracking-wide text-blue-700">
+                                    DHL Tracking
+                                    Updates
+                                  </p>
+
+                                  <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                    CUSTOMER VISIBLE
+                                  </span>
+                                </div>
+
+                                {o.dhlStatusHistory &&
+                                  o.dhlStatusHistory
+                                    .length >
+                                    0 && (
+                                    <div className="mt-2 space-y-2 border-t border-blue-100 pt-2">
+                                      {o.dhlStatusHistory.map(
+                                        (
+                                          h: StatusHistoryItem,
+                                          idx: number
+                                        ) => (
+                                          <div
+                                            key={idx}
+                                            className="flex items-start gap-2 text-xs text-blue-700"
+                                          >
+                                            <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+
+                                            <div>
+                                              <span className="font-medium">
+                                                {
+                                                  h.status
+                                                }
+                                              </span>{" "}
+                                              -{" "}
+                                              {new Date(
+                                                h.at
+                                              ).toLocaleString()}
+
+                                              {h.description && (
+                                                <p className="text-[11px] text-blue-600">
+                                                  {
+                                                    h.description
+                                                  }
+                                                </p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
+
+                                <div className="mt-2 space-y-2">
+                                  <input
+                                    list={`dhl-status-options-${o._id}`}
+                                    value={
+                                      dhlStatusInputs[
+                                        o._id
+                                      ] ?? ""
+                                    }
+                                    onChange={(e) =>
+                                      setDhlStatusInputs(
+                                        (prev) => ({
+                                          ...prev,
+                                          [o._id]:
+                                            e.target
+                                              .value,
+                                        })
+                                      )
+                                    }
+                                    placeholder="Type or choose DHL status..."
+                                    className="w-full rounded-md border border-blue-300 bg-white px-2 py-2 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                  />
+
+                                  <datalist
+                                    id={`dhl-status-options-${o._id}`}
+                                  >
+                                    <option value="shipment_picked_up">
+                                      Shipment Picked
+                                      Up
+                                    </option>
+                                    <option value="in_transit">
+                                      In Transit
+                                    </option>
+                                    <option value="out_for_delivery">
+                                      Out for Delivery
+                                    </option>
+                                    <option value="delivered">
+                                      Delivered
+                                    </option>
+                                    <option value="failed_delivery_attempt">
+                                      Failed Delivery
+                                      Attempt
+                                    </option>
+                                    <option value="returned">
+                                      Returned to
+                                      Shipper
+                                    </option>
+                                    <option value="customs_cleared">
+                                      Customs Cleared
+                                    </option>
+                                    <option value="exception">
+                                      Exception
+                                    </option>
+                                  </datalist>
+
+                                  <input
+                                    value={
+                                      dhlDescriptionInputs[
+                                        o._id
+                                      ] ?? ""
+                                    }
+                                    onChange={(e) =>
+                                      setDhlDescriptionInputs(
+                                        (prev) => ({
+                                          ...prev,
+                                          [o._id]:
+                                            e.target
+                                              .value,
+                                        })
+                                      )
+                                    }
+                                    placeholder="Optional: Add description (shown to customer)"
+                                    className="w-full rounded-md border border-blue-300 bg-white px-2 py-2 text-xs outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                  />
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void saveDhlStatus(
+                                        o._id
+                                      )
+                                    }
+                                    disabled={
+                                      savingDhlStatusFor ===
+                                        o._id ||
+                                      !dhlStatusInputs[
+                                        o._id
+                                      ]?.trim()
+                                    }
+                                    className="w-full rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {savingDhlStatusFor ===
+                                    o._id
+                                      ? "Updating..."
+                                      : "Add DHL Status Update"}
+                                  </button>
+                                </div>
                               </div>
                             )}
-                          </div>
-                        )}
 
-                        {o.externalTrackingNumber &&
-                          o.carrierName === "DHL" && (
-                            <div className="mt-2 rounded-md bg-blue-50 p-2">
-                              <p className="text-xs font-medium text-blue-700">
-                                DHL Tracking Updates (shown
-                                to customer)
-                              </p>
-
-                              {o.dhlStatusHistory &&
-                                o.dhlStatusHistory.length >
-                                  0 && (
-                                  <div className="mt-2 space-y-2 border-t border-blue-100 pt-2">
-                                    {o.dhlStatusHistory.map(
-                                      (
-                                        h: {
-                                          status: string;
-                                          at: string | Date;
-                                          description?: string;
-                                        },
-                                        idx: number
-                                      ) => (
-                                        <div
-                                          key={idx}
-                                          className="flex items-start gap-2 text-xs text-blue-700"
-                                        >
-                                          <span className="mt-1 inline-block h-2 w-2 rounded-full bg-blue-600" />
-
-                                          <div>
-                                            <span className="font-medium">
-                                              {h.status}
-                                            </span>{" "}
-                                            -{" "}
-                                            {new Date(
-                                              h.at
-                                            ).toLocaleString()}
-
-                                            {h.description && (
-                                              <p className="text-[11px] text-blue-600">
-                                                {
-                                                  h.description
-                                                }
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      )
-                                    )}
+                          {/* =================================================
+                              INTERNATIONAL CARGO STATUS PANEL
+                              ================================================= */}
+                          {o.serviceType ===
+                            "international" && (
+                            <div className="mt-2 rounded-lg border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-3 shadow-sm">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-600 text-white">
+                                    <Globe2 className="h-4 w-4" />
                                   </div>
-                                )}
 
-                              <div className="mt-2 space-y-2">
+                                  <div>
+                                    <p className="text-xs font-bold uppercase tracking-wide text-orange-800">
+                                      International
+                                      Cargo
+                                    </p>
+
+                                    <p className="text-[10px] text-orange-600">
+                                      Shipment status
+                                      updates
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <span className="rounded-full bg-orange-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                  CUSTOMER VISIBLE
+                                </span>
+                              </div>
+
+                              {internationalHistory.length >
+                                0 && (
+                                <div className="mt-3 space-y-2 border-t border-orange-200 pt-3">
+                                  {internationalHistory.map(
+                                    (
+                                      h,
+                                      idx
+                                    ) => (
+                                      <div
+                                        key={idx}
+                                        className="flex items-start gap-2 text-xs text-orange-800"
+                                      >
+                                        <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-orange-600" />
+
+                                        <div className="min-w-0">
+                                          <div>
+                                            <span className="font-semibold">
+                                              {STATUS_LABELS[
+                                                h.status as OrderStatus
+                                              ] ||
+                                                h.status}
+                                            </span>{" "}
+                                            <span className="text-orange-500">
+                                              •
+                                            </span>{" "}
+                                            <span className="text-orange-600">
+                                              {new Date(
+                                                h.at
+                                              ).toLocaleString()}
+                                            </span>
+                                          </div>
+
+                                          {h.description && (
+                                            <p className="mt-0.5 text-[11px] leading-4 text-orange-700">
+                                              {
+                                                h.description
+                                              }
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="mt-3 space-y-2">
+                                <label className="block text-[11px] font-semibold text-orange-800">
+                                  International
+                                  status
+                                </label>
+
                                 <input
-                                  list={`dhl-status-options-${o._id}`}
+                                  list={`international-status-options-${o._id}`}
                                   value={
-                                    dhlStatusInputs[
+                                    internationalStatusInputs[
                                       o._id
                                     ] ?? ""
                                   }
                                   onChange={(e) =>
-                                    setDhlStatusInputs(
+                                    setInternationalStatusInputs(
                                       (prev) => ({
                                         ...prev,
                                         [o._id]:
-                                          e.target.value,
+                                          e.target
+                                            .value,
                                       })
                                     )
                                   }
-                                  placeholder="Type or choose DHL status..."
-                                  className="w-full rounded-md border border-blue-300 px-2 py-1 text-xs"
+                                  placeholder="Type or choose international status..."
+                                  className="w-full rounded-md border border-orange-300 bg-white px-3 py-2 text-xs outline-none transition focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                                 />
-                                <datalist id={`dhl-status-options-${o._id}`}>
-                                  <option value="shipment_picked_up">
-                                    Shipment Picked Up
-                                  </option>
-                                  <option value="in_transit">
-                                    In Transit
-                                  </option>
-                                  <option value="out_for_delivery">
-                                    Out for Delivery
-                                  </option>
-                                  <option value="delivered">
-                                    Delivered
-                                  </option>
-                                  <option value="failed_delivery_attempt">
-                                    Failed Delivery Attempt
-                                  </option>
-                                  <option value="returned">
-                                    Returned to Shipper
-                                  </option>
-                                  <option value="customs_cleared">
-                                    Customs Cleared
-                                  </option>
-                                  <option value="exception">
-                                    Exception
-                                  </option>
+
+                                <datalist
+                                  id={`international-status-options-${o._id}`}
+                                >
+                                  {getStatusOptionsForOrder(
+                                    o
+                                  ).map(
+                                    (
+                                      status
+                                    ) => (
+                                      <option
+                                        key={
+                                          status
+                                        }
+                                        value={
+                                          status
+                                        }
+                                      >
+                                        {
+                                          STATUS_LABELS[
+                                            status
+                                          ]
+                                        }
+                                      </option>
+                                    )
+                                  )}
                                 </datalist>
 
-                                <input
+                                <label className="block text-[11px] font-semibold text-orange-800">
+                                  Description
+                                </label>
+
+                                <textarea
                                   value={
-                                    dhlDescriptionInputs[
+                                    internationalDescriptionInputs[
                                       o._id
                                     ] ?? ""
                                   }
                                   onChange={(e) =>
-                                    setDhlDescriptionInputs(
+                                    setInternationalDescriptionInputs(
                                       (prev) => ({
                                         ...prev,
                                         [o._id]:
-                                          e.target.value,
+                                          e.target
+                                            .value,
                                       })
                                     )
                                   }
-                                  placeholder="Optional: Add description (shown to customer)"
-                                  className="w-full rounded-md border border-blue-300 px-2 py-1 text-xs"
+                                  placeholder="Optional: Add a description for this international cargo update..."
+                                  rows={3}
+                                  className="w-full resize-none rounded-md border border-orange-300 bg-white px-3 py-2 text-xs outline-none transition focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                                 />
 
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    saveDhlStatus(o._id)
+                                    void saveInternationalStatus(
+                                      o._id
+                                    )
                                   }
                                   disabled={
-                                    savingDhlStatusFor ===
+                                    savingInternationalStatusFor ===
                                       o._id ||
-                                    !dhlStatusInputs[
+                                    !internationalStatusInputs[
                                       o._id
                                     ]?.trim()
                                   }
-                                  className="w-full rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                  className="flex w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                  {savingDhlStatusFor ===
+                                  <Globe2 className="h-3.5 w-3.5" />
+
+                                  {savingInternationalStatusFor ===
                                   o._id
                                     ? "Updating..."
-                                    : "Add DHL Status Update"}
+                                    : "Add International Status Update"}
                                 </button>
                               </div>
                             </div>
                           )}
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1.5">
+                          <StatusBadge
+                            status={o.status}
+                          />
+
+                          {o.status ===
+                            "in_transit" && (
+                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                              IN TRANSIT
+                            </span>
+                          )}
+
+                          {o.status ===
+                            "out_for_delivery" && (
+                            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
+                              OUT FOR DELIVERY
+                            </span>
+                          )}
+
+                          {o.status ===
+                            "delivered" && (
+                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                              DELIVERED
+                            </span>
+                          )}
+
+                          {o.isAdminCreated && (
+                            <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[11px] font-medium text-white">
+                              Walk-in
+                            </span>
+                          )}
+
+                          {o.serviceType ===
+                            "international" && (
+                            <span className="flex items-center gap-1 rounded-full bg-orange-600 px-2 py-0.5 text-[11px] font-medium text-white">
+                              <Globe2 className="h-3 w-3" />
+                              International Cargo
+                            </span>
+                          )}
+
+                          {o.serviceType ===
+                            "dhl_express" && (
+                            <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-medium text-white">
+                              <Globe2 className="h-3 w-3" />
+                              DHL Express
+                            </span>
+                          )}
+
+                          {o.serviceType ===
+                            "interstate" && (
+                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                              Interstate
+                            </span>
+                          )}
+
+                          {(o.serviceType ===
+                            "local" ||
+                            o.serviceType ===
+                              "ecommerce" ||
+                            o.serviceType ===
+                              "errand" ||
+                            o.serviceType ===
+                              "corporate") && (
+                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
+                              Local
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex flex-col items-end gap-1.5">
-                        <StatusBadge status={o.status} />
-
-                        {/* =================================================
-                            CLEAR IN-TRANSIT / DELIVERY INDICATORS
-                            ================================================= */}
-                        {o.status === "in_transit" && (
-                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                            IN TRANSIT
+                      {(o.paymentMethod ===
+                        "bank_transfer" ||
+                        o.paymentMethod ===
+                          "cash") && (
+                        <div className="mt-3 flex items-center gap-2 border-t border-neutral-100 pt-3 text-sm">
+                          <span className="text-neutral-500">
+                            Payment:
                           </span>
-                        )}
 
-                        {o.status === "out_for_delivery" && (
-                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
-                            OUT FOR DELIVERY
+                          <span
+                            className={
+                              o.paymentStatus ===
+                              "paid"
+                                ? "font-medium text-green-700"
+                                : "font-medium text-yellow-700"
+                            }
+                          >
+                            {o.paymentStatus ===
+                            "paid"
+                              ? o.paymentMethod ===
+                                "cash"
+                                ? "Paid (Cash)"
+                                : "Paid"
+                              : "Pending"}
                           </span>
-                        )}
 
-                        {o.status === "delivered" && (
-                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
-                            DELIVERED
-                          </span>
-                        )}
+                          {o.proofOfPaymentUrl &&
+                            o.paymentStatus ===
+                              "pending" && (
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={
+                                    o.proofOfPaymentUrl
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 underline"
+                                >
+                                  View Proof
+                                </a>
 
-                        {o.isAdminCreated && (
-                          <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[11px] font-medium text-white">
-                            Walk-in
-                          </span>
-                        )}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void markAsPaid(
+                                      o._id
+                                    )
+                                  }
+                                  className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
+                                >
+                                  Mark as Paid
+                                </button>
+                              </div>
+                            )}
 
-                        {/* =================================================
-                            INTERNATIONAL CARGO / DHL DIFFERENTIATION
-                            ================================================= */}
-                        {o.serviceType ===
-                          "international" && (
-                          <span className="flex items-center gap-1 rounded-full bg-purple-700 px-2 py-0.5 text-[11px] font-medium text-white">
-                            <Globe2 className="h-3 w-3" />
-                            International Cargo
-                          </span>
-                        )}
-
-                        {o.serviceType ===
-                          "dhl_express" && (
-                          <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-medium text-white">
-                            <Globe2 className="h-3 w-3" />
-                            DHL Express
-                          </span>
-                        )}
-
-                        {o.serviceType ===
-                          "interstate" && (
-                          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
-                            Interstate
-                          </span>
-                        )}
-
-                        {(o.serviceType ===
-                          "local" ||
-                          o.serviceType ===
-                            "ecommerce" ||
-                          o.serviceType ===
-                            "errand" ||
-                          o.serviceType ===
-                            "corporate") && (
-                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
-                            Local
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {(o.paymentMethod ===
-                      "bank_transfer" ||
-                      o.paymentMethod === "cash") && (
-                      <div className="mt-3 flex items-center gap-2 border-t border-neutral-100 pt-3 text-sm">
-                        <span className="text-neutral-500">
-                          Payment:
-                        </span>
-
-                        <span
-                          className={
-                            o.paymentStatus === "paid"
-                              ? "font-medium text-green-700"
-                              : "font-medium text-yellow-700"
-                          }
-                        >
-                          {o.paymentStatus === "paid"
-                            ? o.paymentMethod === "cash"
-                              ? "Paid (Cash)"
-                              : "Paid"
-                            : "Pending"}
-                        </span>
-
-                        {o.proofOfPaymentUrl &&
-                          o.paymentStatus === "pending" && (
-                            <div className="flex items-center gap-2">
-                              <a
-                                href={
-                                  o.proofOfPaymentUrl
-                                }
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 underline"
-                              >
-                                View Proof
-                              </a>
-
+                          {!o.proofOfPaymentUrl &&
+                            o.paymentStatus ===
+                              "pending" &&
+                            o.paymentMethod ===
+                              "bank_transfer" && (
                               <button
+                                type="button"
                                 onClick={() =>
-                                  markAsPaid(o._id)
+                                  void markAsPaid(
+                                    o._id
+                                  )
                                 }
                                 className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
                               >
                                 Mark as Paid
                               </button>
-                            </div>
-                          )}
-
-                        {!o.proofOfPaymentUrl &&
-                          o.paymentStatus ===
-                            "pending" &&
-                          o.paymentMethod ===
-                            "bank_transfer" && (
-                            <button
-                              onClick={() =>
-                                markAsPaid(o._id)
-                              }
-                              className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
-                            >
-                              Mark as Paid
-                            </button>
-                          )}
-                      </div>
-                    )}
-
-                    {o.customer?.email && (
-                      <div className="mt-3 border-t border-neutral-100 pt-3 text-xs text-neutral-500">
-                        Customer is notified by email at
-                        every status update below.
-                      </div>
-                    )}
-
-                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
-                      {o.status === "pending" && (
-                        <button
-                          onClick={() =>
-                            confirmOrder(o._id)
-                          }
-                          className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                        >
-                          Confirm Order
-                        </button>
+                            )}
+                        </div>
                       )}
 
-                      {(o.status === "confirmed" ||
-                        o.status === "pending") && (
-                        <>
+                      {o.customer?.email && (
+                        <div className="mt-3 border-t border-neutral-100 pt-3 text-xs text-neutral-500">
+                          Customer is notified by
+                          email at every status
+                          update below.
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
+                        {o.status === "pending" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void confirmOrder(
+                                o._id
+                              )
+                            }
+                            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                          >
+                            Confirm Order
+                          </button>
+                        )}
+
+                        {(o.status ===
+                          "confirmed" ||
+                          o.status ===
+                            "pending") && (
+                          <>
+                            <select
+                              value={
+                                selectedDriver[
+                                  o._id
+                                ] || ""
+                              }
+                              onChange={(e) =>
+                                setSelectedDriver(
+                                  (prev) => ({
+                                    ...prev,
+                                    [o._id]:
+                                      e.target
+                                        .value,
+                                  })
+                                )
+                              }
+                              className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
+                            >
+                              <option value="">
+                                Select driver...
+                              </option>
+
+                              {drivers.map((d) => (
+                                <option
+                                  key={d._id}
+                                  value={d._id}
+                                >
+                                  {d.name}{" "}
+                                  {d.vehicleType
+                                    ? `(${d.vehicleType})`
+                                    : ""}
+                                </option>
+                              ))}
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void assignDriver(
+                                  o._id
+                                )
+                              }
+                              disabled={
+                                !selectedDriver[
+                                  o._id
+                                ]
+                              }
+                              className="rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                            >
+                              Assign Driver
+                            </button>
+                          </>
+                        )}
+
+                        {nextAction && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void advanceStatus(
+                                o._id,
+                                nextAction.next
+                              )
+                            }
+                            disabled={
+                              updatingStatus ===
+                              o._id
+                            }
+                            className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                          >
+                            {updatingStatus ===
+                            o._id
+                              ? "Updating..."
+                              : nextAction.label}
+                          </button>
+                        )}
+
+                        <div className="flex items-center gap-2">
                           <select
                             value={
-                              selectedDriver[o._id] ||
-                              ""
+                              selectedStatus[
+                                o._id
+                              ] ?? ""
                             }
                             onChange={(e) =>
-                              setSelectedDriver(
+                              setSelectedStatus(
                                 (prev) => ({
                                   ...prev,
                                   [o._id]:
-                                    e.target.value,
+                                    e.target
+                                      .value,
                                 })
                               )
                             }
                             className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
                           >
                             <option value="">
-                              Select driver...
+                              Set status...
                             </option>
 
-                            {drivers.map((d) => (
+                            {getStatusOptionsForOrder(
+                              o
+                            ).map((status) => (
                               <option
-                                key={d._id}
-                                value={d._id}
+                                key={status}
+                                value={status}
                               >
-                                {d.name}{" "}
-                                {d.vehicleType
-                                  ? `(${d.vehicleType})`
-                                  : ""}
+                                {
+                                  STATUS_LABELS[
+                                    status
+                                  ]
+                                }
                               </option>
                             ))}
                           </select>
 
                           <button
+                            type="button"
                             onClick={() =>
-                              assignDriver(o._id)
+                              void setCustomStatus(
+                                o._id
+                              )
                             }
                             disabled={
-                              !selectedDriver[o._id]
+                              !selectedStatus[
+                                o._id
+                              ] ||
+                              updatingStatus ===
+                                o._id
                             }
-                            className="rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                            className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
                           >
-                            Assign Driver
+                            Update
                           </button>
-                        </>
-                      )}
+                        </div>
 
-                      {nextAction && (
-                        <button
-                          onClick={() =>
-                            advanceStatus(
-                              o._id,
-                              nextAction.next
-                            )
-                          }
-                          disabled={
-                            updatingStatus === o._id
-                          }
-                          className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
-                        >
-                          {updatingStatus === o._id
-                            ? "Updating..."
-                            : nextAction.label}
-                        </button>
-                      )}
-
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={
-                            selectedStatus[o._id] ?? ""
-                          }
-                          onChange={(e) =>
-                            setSelectedStatus(
-                              (prev) => ({
-                                ...prev,
-                                [o._id]:
-                                  e.target.value,
-                              })
-                            )
-                          }
-                          className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
-                        >
-                          <option value="">
-                            Set status...
-                          </option>
-
-                          {getStatusOptionsForOrder(
-                            o
-                          ).map((status) => (
-                            <option
-                              key={status}
-                              value={status}
-                            >
-                              {STATUS_LABELS[status]}
-                            </option>
-                          ))}
-                        </select>
-
-                        <button
-                          onClick={() =>
-                            setCustomStatus(o._id)
-                          }
-                          disabled={
-                            !selectedStatus[o._id] ||
-                            updatingStatus === o._id
-                          }
-                          className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
-                        >
-                          Update
-                        </button>
-                      </div>
-
-                      <a
-                        href={recipientWhatsAppLink(o)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Notify Recipient (
-                        {STATUS_LABELS[o.status]})
-                      </a>
-
-                      {(o.senderPhone ||
-                        o.customer?.phone) && (
                         <a
-                          href={senderWhatsAppLink(o)}
+                          href={recipientWhatsAppLink(
+                            o
+                          )}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
+                          className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
                         >
                           <MessageCircle className="h-3.5 w-3.5" />
-                          Notify Sender (
-                          {STATUS_LABELS[o.status]})
+                          Notify Recipient (
+                          {
+                            STATUS_LABELS[
+                              o.status
+                            ]
+                          }
+                          )
                         </a>
-                      )}
 
-                      <button
-                        onClick={() =>
-                          triggerPickupPhoto(o._id)
-                        }
-                        disabled={isUploadingThis}
-                        className="flex items-center gap-1 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-                      >
-                        {o.pickupPhotoUrl ? (
-                          <Check className="h-3.5 w-3.5 text-green-600" />
-                        ) : (
-                          <Camera className="h-3.5 w-3.5" />
-                        )}
-
-                        {isUploadingThis
-                          ? "Uploading..."
-                          : o.pickupPhotoUrl
-                          ? "Replace Pickup Photo"
-                          : "Upload Pickup Photo"}
-                      </button>
-
-                      <button
-                        onClick={() =>
-                          triggerDeliveryPhoto(o._id)
-                        }
-                        disabled={isUploadingThis}
-                        className="flex items-center gap-1 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-                      >
-                        {o.deliveryPhotoUrl ? (
-                          <Check className="h-3.5 w-3.5 text-green-600" />
-                        ) : (
-                          <Camera className="h-3.5 w-3.5" />
-                        )}
-
-                        {isUploadingThis
-                          ? "Uploading..."
-                          : o.deliveryPhotoUrl
-                          ? "Replace Delivery Photo"
-                          : "Upload Delivery Photo"}
-                      </button>
-
-                      {o.status !== "delivered" &&
-                        o.status !== "cancelled" && (
-                          <button
-                            onClick={() =>
-                              cancelOrder(o._id)
-                            }
-                            className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+                        {(o.senderPhone ||
+                          o.customer?.phone) && (
+                          <a
+                            href={senderWhatsAppLink(
+                              o
+                            )}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
                           >
-                            Cancel Order
-                          </button>
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            Notify Sender (
+                            {
+                              STATUS_LABELS[
+                                o.status
+                              ]
+                            }
+                            )
+                          </a>
                         )}
 
-                      <Link
-                        href={`/orders/${o._id}`}
-                        className="ml-auto rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-                      >
-                        View & Chat
-                      </Link>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            triggerPickupPhoto(
+                              o._id
+                            )
+                          }
+                          disabled={isUploadingThis}
+                          className="flex items-center gap-1 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                        >
+                          {o.pickupPhotoUrl ? (
+                            <Check className="h-3.5 w-3.5 text-green-600" />
+                          ) : (
+                            <Camera className="h-3.5 w-3.5" />
+                          )}
+
+                          {isUploadingThis
+                            ? "Uploading..."
+                            : o.pickupPhotoUrl
+                            ? "Replace Pickup Photo"
+                            : "Upload Pickup Photo"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            triggerDeliveryPhoto(
+                              o._id
+                            )
+                          }
+                          disabled={isUploadingThis}
+                          className="flex items-center gap-1 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                        >
+                          {o.deliveryPhotoUrl ? (
+                            <Check className="h-3.5 w-3.5 text-green-600" />
+                          ) : (
+                            <Camera className="h-3.5 w-3.5" />
+                          )}
+
+                          {isUploadingThis
+                            ? "Uploading..."
+                            : o.deliveryPhotoUrl
+                            ? "Replace Delivery Photo"
+                            : "Upload Delivery Photo"}
+                        </button>
+
+                        {o.status !==
+                          "delivered" &&
+                          o.status !==
+                            "cancelled" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void cancelOrder(
+                                  o._id
+                                )
+                              }
+                              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+                            >
+                              Cancel Order
+                            </button>
+                          )}
+
+                        <Link
+                          href={`/orders/${o._id}`}
+                          className="ml-auto rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                        >
+                          View & Chat
+                        </Link>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        )}
       </div>
 
       <StatusModal
         state={modal}
-        onClose={() => setModal(CLOSED_MODAL)}
+        onClose={() =>
+          setModal(CLOSED_MODAL)
+        }
       />
     </div>
   );
@@ -1736,33 +2270,55 @@ function AdminCreateOrderForm({
 }: {
   onCreated: () => void;
 }) {
-  const [senderName, setSenderName] = useState("");
-  const [senderPhone, setSenderPhone] = useState("");
-  const [customerEmail, setCustomerEmail] = useState("");
-  const [customerId, setCustomerId] = useState<string | null>(
-    null
-  );
-  const [customerQuery, setCustomerQuery] = useState("");
-  const [customerResults, setCustomerResults] = useState<
-    Array<{
-      _id: string;
-      name: string;
-      email: string;
-      phone?: string;
-    }>
-  >([]);
+  const [senderName, setSenderName] =
+    useState("");
+
+  const [senderPhone, setSenderPhone] =
+    useState("");
+
+  const [customerEmail, setCustomerEmail] =
+    useState("");
+
+  const [customerId, setCustomerId] =
+    useState<string | null>(null);
+
+  const [customerQuery, setCustomerQuery] =
+    useState("");
+
+  const [customerResults, setCustomerResults] =
+    useState<
+      Array<{
+        _id: string;
+        name: string;
+        email: string;
+        phone?: string;
+      }>
+    >([]);
+
   const [customerSearching, setCustomerSearching] =
     useState(false);
 
-  const [pickupAddress, setPickupAddress] = useState("");
-  const [pickupCity, setPickupCity] = useState("");
-  const [pickupState, setPickupState] = useState("");
+  const [pickupAddress, setPickupAddress] =
+    useState("");
+
+  const [pickupCity, setPickupCity] =
+    useState("");
+
+  const [pickupState, setPickupState] =
+    useState("");
+
   const [pickupPostalCode, setPickupPostalCode] =
     useState("");
 
-  const [dropoffAddress, setDropoffAddress] = useState("");
-  const [dropoffCity, setDropoffCity] = useState("");
-  const [dropoffState, setDropoffState] = useState("");
+  const [dropoffAddress, setDropoffAddress] =
+    useState("");
+
+  const [dropoffCity, setDropoffCity] =
+    useState("");
+
+  const [dropoffState, setDropoffState] =
+    useState("");
+
   const [dropoffPostalCode, setDropoffPostalCode] =
     useState("");
 
@@ -1775,11 +2331,13 @@ function AdminCreateOrderForm({
   const [packageDescription, setPackageDescription] =
     useState("");
 
-  const [packageSize, setPackageSize] = useState<
-    "small" | "medium" | "large"
-  >("small");
+  const [packageSize, setPackageSize] =
+    useState<
+      "small" | "medium" | "large"
+    >("small");
 
-  const [weightKg, setWeightKg] = useState("");
+  const [weightKg, setWeightKg] =
+    useState("");
 
   const [recipientName, setRecipientName] =
     useState("");
@@ -1790,9 +2348,10 @@ function AdminCreateOrderForm({
   const [recipientPhone, setRecipientPhone] =
     useState("");
 
-  const [paymentMethod, setPaymentMethod] = useState<
-    "bank_transfer" | "cash"
-  >("cash");
+  const [paymentMethod, setPaymentMethod] =
+    useState<
+      "bank_transfer" | "cash"
+    >("cash");
 
   const [notifyByEmail, setNotifyByEmail] =
     useState(true);
@@ -1800,16 +2359,24 @@ function AdminCreateOrderForm({
   const [notifyBySms, setNotifyBySms] =
     useState(false);
 
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] =
+    useState("");
+
+  const [submitting, setSubmitting] =
+    useState(false);
 
   const [createdOrder, setCreatedOrder] =
     useState<CreatedOrder | null>(null);
 
   const isInternational =
-    dropoffCountry.trim().toLowerCase() !== "nigeria";
+    dropoffCountry
+      .trim()
+      .toLowerCase() !==
+    "nigeria";
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(
+    e: React.FormEvent
+  ) {
     e.preventDefault();
 
     setError("");
@@ -1820,11 +2387,12 @@ function AdminCreateOrderForm({
       let dropoffLoc;
 
       try {
-        pickupLoc = await geocodeAddress(
-          pickupAddress,
-          pickupCity,
-          "Nigeria"
-        );
+        pickupLoc =
+          await geocodeAddress(
+            pickupAddress,
+            pickupCity,
+            "Nigeria"
+          );
       } catch {
         setError(
           "Could not locate the pickup address. Please check it and try again."
@@ -1833,11 +2401,12 @@ function AdminCreateOrderForm({
       }
 
       try {
-        dropoffLoc = await geocodeAddress(
-          dropoffAddress,
-          dropoffCity,
-          dropoffCountry
-        );
+        dropoffLoc =
+          await geocodeAddress(
+            dropoffAddress,
+            dropoffCity,
+            dropoffCountry
+          );
       } catch {
         setError(
           "Could not locate the drop-off address. Please check it and try again."
@@ -1845,7 +2414,25 @@ function AdminCreateOrderForm({
         return;
       }
 
-      const payload: Record<string, unknown> = {
+      const cleanRecipientPhone =
+        recipientPhone.replace(/\D/g, "");
+
+      const cleanPhoneCode =
+        recipientPhoneCode.replace(/\D/g, "");
+
+      const combinedRecipientPhone =
+        cleanPhoneCode &&
+        cleanRecipientPhone
+          ? `${cleanPhoneCode}${cleanRecipientPhone.replace(
+              /^0+/,
+              ""
+            )}`
+          : recipientPhone;
+
+      const payload: Record<
+        string,
+        unknown
+      > = {
         customerEmail,
         senderName,
         senderPhone,
@@ -1854,9 +2441,11 @@ function AdminCreateOrderForm({
           address: pickupAddress,
           city: pickupCity,
           country: "Nigeria",
-          state: pickupState || undefined,
+          state:
+            pickupState || undefined,
           postalCode:
-            pickupPostalCode || undefined,
+            pickupPostalCode ||
+            undefined,
           lat: pickupLoc.lat,
           lng: pickupLoc.lng,
         },
@@ -1865,9 +2454,11 @@ function AdminCreateOrderForm({
           address: dropoffAddress,
           city: dropoffCity,
           country: dropoffCountry,
-          state: dropoffState || undefined,
+          state:
+            dropoffState || undefined,
           postalCode:
-            dropoffPostalCode || undefined,
+            dropoffPostalCode ||
+            undefined,
           lat: dropoffLoc.lat,
           lng: dropoffLoc.lng,
         },
@@ -1877,29 +2468,39 @@ function AdminCreateOrderForm({
         packageSize,
 
         weightKg:
-          isInternational && weightKg
+          isInternational &&
+          weightKg
             ? parseFloat(weightKg)
             : undefined,
 
         recipientName,
-        recipientPhone,
+
+        recipientPhone:
+          combinedRecipientPhone,
+
         paymentMethod,
+        notifyByEmail,
+        notifyBySms,
       };
 
       if (customerId) {
-        payload.customerId = customerId;
+        payload.customerId =
+          customerId;
       }
 
-      payload.notifyByEmail = notifyByEmail;
-      payload.notifyBySms = notifyBySms;
-
-      const res = await fetch("/api/orders/admin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        "/api/orders/admin",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify(
+            payload
+          ),
+        }
+      );
 
       let data: {
         error?: string;
@@ -1914,7 +2515,8 @@ function AdminCreateOrderForm({
 
       if (!res.ok || !data.order) {
         setError(
-          data.error || "Could not create order"
+          data.error ||
+            "Could not create order"
         );
         return;
       }
@@ -1932,6 +2534,7 @@ function AdminCreateOrderForm({
         customerQuery.trim().length < 2
       ) {
         setCustomerResults([]);
+        setCustomerSearching(false);
         return;
       }
 
@@ -1944,50 +2547,68 @@ function AdminCreateOrderForm({
       )
         .then((r) => r.json())
         .then((data) => {
-          setCustomerResults(data.users || []);
+          setCustomerResults(
+            data.users || []
+          );
         })
-        .catch(() => setCustomerResults([]))
+        .catch(() =>
+          setCustomerResults([])
+        )
         .finally(() =>
           setCustomerSearching(false)
         );
     }, 300);
 
-    return () => clearTimeout(t);
+    return () =>
+      clearTimeout(t);
   }, [customerQuery]);
 
   if (createdOrder) {
-    const trackingUrl = trackingUrlFor(
-      createdOrder.trackingNumber
-    );
+    const trackingUrl =
+      trackingUrlFor(
+        createdOrder.trackingNumber
+      );
 
     const message = `Hi ${senderName}, your CityBike Logistics order has been created. Tracking number: #${createdOrder.trackingNumber}. Track it here: ${trackingUrl}`;
 
-    const whatsappHref = `https://wa.me/${toWhatsAppDigits(
-      senderPhone
-    )}?text=${encodeURIComponent(message)}`;
+    const whatsappPhone =
+      toWhatsAppDigits(
+        senderPhone
+      );
+
+    const whatsappHref = whatsappPhone
+      ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(
+          message
+        )}`
+      : "#";
 
     return (
       <div className="mt-4 space-y-4 rounded-lg border border-green-200 bg-green-50 p-5 text-center">
         <p className="text-sm text-green-700">
-          Order created! Tracking number:
+          Order created! Tracking
+          number:
         </p>
 
         <p className="mt-1 font-mono text-xl font-bold tracking-wide text-green-800">
           #{createdOrder.trackingNumber}
         </p>
 
-        <a
-          href={whatsappHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-        >
-          <MessageCircle className="h-4 w-4" />
-          Send Tracking Number to Sender on WhatsApp
-        </a>
+        {whatsappPhone && (
+          <a
+            href={whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Send Tracking Number to
+            Sender on WhatsApp
+          </a>
+        )}
 
         <div>
           <button
+            type="button"
             onClick={onCreated}
             className="mt-3 text-sm font-medium text-neutral-600 underline"
           >
@@ -2004,7 +2625,8 @@ function AdminCreateOrderForm({
       className="mt-4 space-y-4 rounded-lg border border-neutral-200 bg-white p-5"
     >
       <h2 className="text-sm font-semibold text-neutral-800">
-        Create Order on Behalf of a Client
+        Create Order on Behalf of
+        a Client
       </h2>
 
       <div>
@@ -2023,14 +2645,16 @@ function AdminCreateOrderForm({
         >
           {Object.entries(
             SERVICE_TYPE_LABELS
-          ).map(([value, label]) => (
-            <option
-              key={value}
-              value={value}
-            >
-              {label}
-            </option>
-          ))}
+          ).map(
+            ([value, label]) => (
+              <option
+                key={value}
+                value={value}
+              >
+                {label}
+              </option>
+            )
+          )}
         </select>
       </div>
 
@@ -2044,7 +2668,9 @@ function AdminCreateOrderForm({
             required
             value={senderName}
             onChange={(e) =>
-              setSenderName(e.target.value)
+              setSenderName(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2059,7 +2685,9 @@ function AdminCreateOrderForm({
             required
             value={senderPhone}
             onChange={(e) =>
-              setSenderPhone(e.target.value)
+              setSenderPhone(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2067,15 +2695,20 @@ function AdminCreateOrderForm({
 
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-neutral-700">
-            Search existing customer (name or email)
+            Search existing customer
+            (name or email)
           </label>
 
           <input
             value={customerQuery}
             onChange={(e) => {
-              setCustomerQuery(e.target.value);
+              setCustomerQuery(
+                e.target.value
+              );
               setCustomerId(null);
-              setCustomerEmail(e.target.value);
+              setCustomerEmail(
+                e.target.value
+              );
             }}
             placeholder="Type to search — or type an email to create a new customer"
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
@@ -2087,46 +2720,58 @@ function AdminCreateOrderForm({
             </p>
           )}
 
-          {customerResults.length > 0 && (
+          {customerResults.length >
+            0 && (
             <div className="mt-1 max-h-48 w-full overflow-auto rounded-md border border-neutral-200 bg-white">
-              {customerResults.map((u) => (
-                <button
-                  key={u._id}
-                  type="button"
-                  onClick={() => {
-                    setCustomerId(u._id);
-                    setCustomerEmail(u.email);
-                    setCustomerQuery(
-                      `${u.name} <${u.email}>`
-                    );
-                    setCustomerResults([]);
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-neutral-50"
-                >
-                  <div className="font-medium">
-                    {u.name}
-                  </div>
+              {customerResults.map(
+                (u) => (
+                  <button
+                    key={u._id}
+                    type="button"
+                    onClick={() => {
+                      setCustomerId(
+                        u._id
+                      );
+                      setCustomerEmail(
+                        u.email
+                      );
+                      setCustomerQuery(
+                        `${u.name} <${u.email}>`
+                      );
+                      setCustomerResults(
+                        []
+                      );
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-neutral-50"
+                  >
+                    <div className="font-medium">
+                      {u.name}
+                    </div>
 
-                  <div className="text-xs text-neutral-500">
-                    {u.email}{" "}
-                    {u.phone
-                      ? `· ${u.phone}`
-                      : ""}
-                  </div>
-                </button>
-              ))}
+                    <div className="text-xs text-neutral-500">
+                      {u.email}{" "}
+                      {u.phone
+                        ? `· ${u.phone}`
+                        : ""}
+                    </div>
+                  </button>
+                )
+              )}
             </div>
           )}
 
           <div className="mt-2">
             <label className="mb-1 block text-sm font-medium text-neutral-700">
-              Customer email (recipient)
+              Customer email
+              (recipient)
             </label>
 
             <input
               value={customerEmail}
               onChange={(e) =>
-                setCustomerEmail(e.target.value)
+                setCustomerEmail(
+                  e.target.value
+                )
               }
               placeholder="customer@example.com"
               className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
@@ -2146,7 +2791,9 @@ function AdminCreateOrderForm({
             placeholder="Street address"
             value={pickupAddress}
             onChange={(e) =>
-              setPickupAddress(e.target.value)
+              setPickupAddress(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2156,7 +2803,9 @@ function AdminCreateOrderForm({
             placeholder="City (e.g. Ibadan)"
             value={pickupCity}
             onChange={(e) =>
-              setPickupCity(e.target.value)
+              setPickupCity(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2165,7 +2814,9 @@ function AdminCreateOrderForm({
             placeholder="State / region (e.g. Oyo)"
             value={pickupState}
             onChange={(e) =>
-              setPickupState(e.target.value)
+              setPickupState(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2174,7 +2825,9 @@ function AdminCreateOrderForm({
             placeholder="Postcode / ZIP"
             value={pickupPostalCode}
             onChange={(e) =>
-              setPickupPostalCode(e.target.value)
+              setPickupPostalCode(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2192,7 +2845,9 @@ function AdminCreateOrderForm({
             placeholder="Street address"
             value={dropoffAddress}
             onChange={(e) =>
-              setDropoffAddress(e.target.value)
+              setDropoffAddress(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2202,7 +2857,9 @@ function AdminCreateOrderForm({
             placeholder="City"
             value={dropoffCity}
             onChange={(e) =>
-              setDropoffCity(e.target.value)
+              setDropoffCity(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2211,7 +2868,9 @@ function AdminCreateOrderForm({
             placeholder="State / region"
             value={dropoffState}
             onChange={(e) =>
-              setDropoffState(e.target.value)
+              setDropoffState(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2220,7 +2879,9 @@ function AdminCreateOrderForm({
             placeholder="Postcode / ZIP"
             value={dropoffPostalCode}
             onChange={(e) =>
-              setDropoffPostalCode(e.target.value)
+              setDropoffPostalCode(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2228,15 +2889,22 @@ function AdminCreateOrderForm({
           <select
             value={dropoffCountry}
             onChange={(e) =>
-              setDropoffCountry(e.target.value)
+              setDropoffCountry(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           >
-            {COUNTRY_OPTIONS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
+            {COUNTRY_OPTIONS.map(
+              (c) => (
+                <option
+                  key={c}
+                  value={c}
+                >
+                  {c}
+                </option>
+              )
+            )}
           </select>
         </fieldset>
       </div>
@@ -2251,7 +2919,9 @@ function AdminCreateOrderForm({
             required
             value={packageDescription}
             onChange={(e) =>
-              setPackageDescription(e.target.value)
+              setPackageDescription(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2289,7 +2959,8 @@ function AdminCreateOrderForm({
         {isInternational && (
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">
-              Package weight (kg)
+              Package weight
+              (kg)
             </label>
 
             <input
@@ -2299,7 +2970,9 @@ function AdminCreateOrderForm({
               min="0.1"
               value={weightKg}
               onChange={(e) =>
-                setWeightKg(e.target.value)
+                setWeightKg(
+                  e.target.value
+                )
               }
               className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
             />
@@ -2315,7 +2988,9 @@ function AdminCreateOrderForm({
             required
             value={recipientName}
             onChange={(e) =>
-              setRecipientName(e.target.value)
+              setRecipientName(
+                e.target.value
+              )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
           />
@@ -2342,7 +3017,9 @@ function AdminCreateOrderForm({
               required
               value={recipientPhone}
               onChange={(e) =>
-                setRecipientPhone(e.target.value)
+                setRecipientPhone(
+                  e.target.value
+                )
               }
               className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
             />
@@ -2367,46 +3044,58 @@ function AdminCreateOrderForm({
           className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
         >
           <option value="cash">
-            Cash (received in person)
+            Cash (received in
+            person)
           </option>
+
           <option value="bank_transfer">
             Bank Transfer
           </option>
         </select>
       </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          id="notifyEmail"
-          type="checkbox"
-          checked={notifyByEmail}
-          onChange={(e) =>
-            setNotifyByEmail(e.target.checked)
-          }
-        />
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <input
+            id="notifyEmail"
+            type="checkbox"
+            checked={notifyByEmail}
+            onChange={(e) =>
+              setNotifyByEmail(
+                e.target.checked
+              )
+            }
+          />
 
-        <label
-          htmlFor="notifyEmail"
-          className="text-sm text-neutral-700"
-        >
-          Notify customer by email
-        </label>
+          <label
+            htmlFor="notifyEmail"
+            className="text-sm text-neutral-700"
+          >
+            Notify customer by
+            email
+          </label>
+        </div>
 
-        <input
-          id="notifySms"
-          type="checkbox"
-          checked={notifyBySms}
-          onChange={(e) =>
-            setNotifyBySms(e.target.checked)
-          }
-        />
+        <div className="flex items-center gap-2">
+          <input
+            id="notifySms"
+            type="checkbox"
+            checked={notifyBySms}
+            onChange={(e) =>
+              setNotifyBySms(
+                e.target.checked
+              )
+            }
+          />
 
-        <label
-          htmlFor="notifySms"
-          className="text-sm text-neutral-700"
-        >
-          Notify customer by SMS/WhatsApp
-        </label>
+          <label
+            htmlFor="notifySms"
+            className="text-sm text-neutral-700"
+          >
+            Notify customer by
+            SMS/WhatsApp
+          </label>
+        </div>
       </div>
 
       {error && (
