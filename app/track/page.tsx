@@ -54,14 +54,6 @@ function isDhlExpress(
 function isInternationalCargo(
   result: PublicTrackingResult
 ): boolean {
-  /*
-   * International Cargo is specifically the
-   * "international" service type.
-   *
-   * Do not use result.isInternational because
-   * DHL shipments can also be international.
-   */
-
   return result.serviceType === "international";
 }
 
@@ -156,18 +148,8 @@ function getOrderTimelineDescription(
 }
 
 /* =========================================================
-   CARRIER EVENT DESCRIPTION
+   DHL EVENT DESCRIPTION
 ========================================================= */
-
-/*
- * IMPORTANT:
- *
- * These events may originate from the carrier internally,
- * but the customer-facing UI does NOT mention the carrier.
- *
- * This keeps the public tracking page as one unified
- * "Tracking Timeline".
- */
 
 function getDHLTimelineDescription(
   status: DHLStatus,
@@ -295,9 +277,7 @@ function getTrackingEventLabel(
     );
   }
 
-  const labels: Partial<
-    Record<OrderStatus, string>
-  > = {
+  const labels: Partial<Record<OrderStatus, string>> = {
     pending: "Pending",
     shipment_created: "Shipment Created",
     awaiting_batching: "Awaiting Batching",
@@ -369,13 +349,6 @@ function getTrackingEventStyle(
   event: TrackingEvent,
   isLatest: boolean
 ) {
-  /* =======================================================
-     DHL-BACKED SHIPMENT
-     
-     The customer does NOT see the carrier name.
-     DHL-backed shipments simply use BLUE.
-  ======================================================= */
-
   if (event.source === "dhl") {
     if (event.status === "exception") {
       return {
@@ -391,26 +364,16 @@ function getTrackingEventStyle(
       dot: isLatest
         ? "bg-blue-600"
         : "bg-blue-300",
-
       badge: isLatest
         ? "bg-blue-600 text-white"
         : "bg-blue-100 text-blue-800",
-
       text: "text-blue-950",
-
       line: "border-blue-300",
-
       card: isLatest
         ? "border-blue-300 bg-blue-100/80 shadow-sm"
         : "border-blue-200 bg-blue-50/70",
     };
   }
-
-  /* =======================================================
-     INTERNATIONAL CARGO
-     
-     International Cargo is ALWAYS ORANGE.
-  ======================================================= */
 
   if (event.source === "international") {
     if (event.status === "exception") {
@@ -437,26 +400,20 @@ function getTrackingEventStyle(
       dot: isLatest
         ? "bg-orange-600"
         : "bg-orange-300",
-
       badge: isLatest
         ? "bg-orange-600 text-white"
         : "bg-orange-100 text-orange-800",
-
       text: "text-orange-950",
-
       line: "border-orange-300",
-
       card: isLatest
         ? "border-orange-300 bg-orange-100/80 shadow-sm"
         : "border-orange-200 bg-orange-50/70",
     };
   }
 
-  /* =======================================================
-     EXCEPTION
-  ======================================================= */
-
-  if (event.status === "exception") {
+  if (
+    event.status === "exception"
+  ) {
     return {
       dot: "bg-red-500",
       badge: "bg-red-100 text-red-700",
@@ -466,11 +423,9 @@ function getTrackingEventStyle(
     };
   }
 
-  /* =======================================================
-     DELAYED
-  ======================================================= */
-
-  if (event.status === "delayed") {
+  if (
+    event.status === "delayed"
+  ) {
     return {
       dot: "bg-amber-500",
       badge: "bg-amber-100 text-amber-700",
@@ -480,23 +435,15 @@ function getTrackingEventStyle(
     };
   }
 
-  /* =======================================================
-     INTERNAL
-  ======================================================= */
-
   return {
     dot: isLatest
       ? "bg-orange-600"
       : "bg-orange-300",
-
     badge: isLatest
       ? "bg-orange-600 text-white"
       : "bg-orange-100 text-orange-800",
-
     text: "text-orange-950",
-
     line: "border-orange-300",
-
     card: isLatest
       ? "border-orange-300 bg-orange-100/80 shadow-sm"
       : "border-orange-200 bg-orange-50/70",
@@ -593,7 +540,7 @@ function PublicTrackPageInner() {
     );
 
   const [error, setError] =
-    useState<string>("");
+    useState("");
 
   const [loading, setLoading] =
     useState(false);
@@ -605,7 +552,7 @@ function PublicTrackPageInner() {
     useState(false);
 
   /* =======================================================
-     PREFILL TRACKING NUMBER
+     PREFILL
   ======================================================= */
 
   useEffect(() => {
@@ -615,7 +562,7 @@ function PublicTrackPageInner() {
   }, [prefill]);
 
   /* =======================================================
-     FETCH TRACKING DATA
+     FETCH TRACKING
   ======================================================= */
 
   async function fetchTracking(
@@ -721,7 +668,6 @@ function PublicTrackPageInner() {
       setError(
         "Please enter a tracking number."
       );
-
       return;
     }
 
@@ -773,7 +719,7 @@ function PublicTrackPageInner() {
   ]);
 
   /* =======================================================
-     AUTOMATIC POLLING FALLBACK
+     POLLING FALLBACK
   ======================================================= */
 
   useEffect(() => {
@@ -813,15 +759,6 @@ function PublicTrackPageInner() {
       ? isInternationalCargo(result)
       : false;
 
-  /*
-   * IMPORTANT:
-   *
-   * DHL is used internally to determine the
-   * blue customer-facing theme.
-   *
-   * The carrier name is never displayed.
-   */
-
   /* =======================================================
      BUILD UNIFIED EVENTS
   ======================================================= */
@@ -834,11 +771,6 @@ function PublicTrackPageInner() {
 
       let events: TrackingEvent[] = [];
 
-      /*
-       * If API already supplies trackingEvents,
-       * use those.
-       */
-
       if (
         result.trackingEvents &&
         result.trackingEvents.length > 0
@@ -847,52 +779,34 @@ function PublicTrackPageInner() {
           ...result.trackingEvents,
         ];
       } else {
-        /*
-         * INTERNAL EVENTS
-         */
-
         const internalEvents =
-          (result.statusHistory || []).map(
-            (h) => ({
-              status: h.status,
-              at: h.at,
-              source:
-                "internal" as const,
-              description:
-                getOrderTimelineDescription(
-                  h.status,
-                  result
-                ),
-            })
-          );
-
-        /*
-         * CARRIER EVENTS
-         *
-         * These are retained internally,
-         * but carrier identity is hidden
-         * from the customer-facing timeline.
-         */
+          (
+            result.statusHistory || []
+          ).map((h) => ({
+            status: h.status,
+            at: h.at,
+            source: "internal" as const,
+            description:
+              getOrderTimelineDescription(
+                h.status,
+                result
+              ),
+          }));
 
         const dhlEvents =
-          (result.dhlStatusHistory || []).map(
-            (h) => ({
-              status: h.status,
-              at: h.at,
-              source:
-                "dhl" as const,
-              description:
-                getDHLTimelineDescription(
-                  h.status,
-                  h.description,
-                  result
-                ),
-            })
-          );
-
-        /*
-         * INTERNATIONAL CARGO EVENTS
-         */
+          (
+            result.dhlStatusHistory || []
+          ).map((h) => ({
+            status: h.status,
+            at: h.at,
+            source: "dhl" as const,
+            description:
+              getDHLTimelineDescription(
+                h.status,
+                h.description,
+                result
+              ),
+          }));
 
         const internationalEvents =
           (
@@ -918,15 +832,6 @@ function PublicTrackPageInner() {
         ];
       }
 
-      /*
-       * =====================================================
-       * BLUE SHIPMENT FILTER
-       *
-       * Keep internal + carrier events.
-       * Remove international events.
-       * =====================================================
-       */
-
       if (dhlExpress) {
         events = events.filter(
           (event) =>
@@ -934,15 +839,6 @@ function PublicTrackPageInner() {
             event.source === "internal"
         );
       }
-
-      /*
-       * =====================================================
-       * INTERNATIONAL CARGO FILTER
-       *
-       * Keep international + internal.
-       * Remove carrier events.
-       * =====================================================
-       */
 
       if (internationalCargo) {
         events = events.filter(
@@ -952,12 +848,6 @@ function PublicTrackPageInner() {
             event.source === "internal"
         );
       }
-
-      /*
-       * =====================================================
-       * DOMESTIC
-       * =====================================================
-       */
 
       if (
         !dhlExpress &&
@@ -987,25 +877,6 @@ function PublicTrackPageInner() {
         ? "border-orange-300"
         : "border-neutral-200";
 
-  const serviceIconBgClass =
-    dhlExpress
-      ? "bg-blue-100"
-      : internationalCargo
-        ? "bg-orange-100"
-        : "bg-neutral-100";
-
-  const serviceIconClass =
-    dhlExpress
-      ? "text-blue-600"
-      : internationalCargo
-        ? "text-orange-600"
-        : "text-neutral-600";
-
-  const serviceColor =
-    dhlExpress
-      ? "blue"
-      : "orange";
-
   /* =======================================================
      RENDER
   ======================================================= */
@@ -1013,12 +884,9 @@ function PublicTrackPageInner() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      {/* HEADER */}
 
       <div className="text-center">
-
         <div
           className={`mx-auto mb-3 inline-flex rounded-full p-3 ${
             dhlExpress
@@ -1039,18 +907,14 @@ function PublicTrackPageInner() {
           local, interstate, and international
           shipments.
         </p>
-
       </div>
 
-      {/* =================================================
-          SEARCH
-      ================================================= */}
+      {/* SEARCH */}
 
       <form
         onSubmit={handleSearch}
         className="mx-auto mt-6 flex max-w-md gap-2"
       >
-
         <input
           value={input}
           onChange={(e) =>
@@ -1074,18 +938,13 @@ function PublicTrackPageInner() {
           }`}
         >
           <Search className="h-4 w-4" />
-
           {loading
             ? "Searching..."
             : "Track"}
-
         </button>
-
       </form>
 
-      {/* =================================================
-          ERROR
-      ================================================= */}
+      {/* ERROR */}
 
       {searched &&
         !loading &&
@@ -1095,25 +954,19 @@ function PublicTrackPageInner() {
           </p>
         )}
 
-      {/* =================================================
-          RESULT
-      ================================================= */}
+      {/* RESULT */}
 
       {result && (
         <div className="mt-8 space-y-6">
 
-          {/* =================================================
-              SHIPMENT SUMMARY
-          ================================================= */}
+          {/* SHIPMENT SUMMARY */}
 
           <div
             className={`rounded-lg border bg-white p-5 ${serviceBorderClass}`}
           >
-
             <div className="flex flex-wrap items-center justify-between gap-3">
 
               <div>
-
                 <p className="font-mono text-lg font-bold tracking-wide text-neutral-900">
                   #{result.trackingNumber}
                 </p>
@@ -1121,18 +974,12 @@ function PublicTrackPageInner() {
                 <p className="mt-1 text-sm text-neutral-600">
                   {result.packageDescription}
                 </p>
-
               </div>
 
               <div className="flex flex-col items-end gap-1.5">
-
                 <StatusBadge
                   status={result.status}
                 />
-
-                {/* =================================================
-                    INTERNATIONAL CARGO BADGE
-                ================================================= */}
 
                 {internationalCargo && (
                   <span className="flex items-center gap-1 rounded-full bg-orange-600 px-2.5 py-0.5 text-xs font-medium text-white">
@@ -1140,9 +987,7 @@ function PublicTrackPageInner() {
                     International Cargo
                   </span>
                 )}
-
               </div>
-
             </div>
 
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-neutral-600">
@@ -1190,12 +1035,9 @@ function PublicTrackPageInner() {
                   ).toLocaleString()}
                 </span>
               )}
-
             </div>
 
-            {/* =================================================
-                INTERNATIONAL CARGO ROUTE CARD
-            ================================================= */}
+            {/* INTERNATIONAL ROUTE */}
 
             {internationalCargo && (
               <div className="mt-5 rounded-xl border border-orange-200 bg-gradient-to-br from-orange-50 via-white to-orange-50 p-4">
@@ -1209,7 +1051,6 @@ function PublicTrackPageInner() {
                     </div>
 
                     <div>
-
                       <p className="text-sm font-semibold text-orange-900">
                         International Cargo
                       </p>
@@ -1217,15 +1058,12 @@ function PublicTrackPageInner() {
                       <p className="text-xs text-orange-700">
                         International cargo shipment tracking
                       </p>
-
                     </div>
-
                   </div>
 
                   {refreshing && (
                     <RefreshCw className="h-4 w-4 animate-spin text-orange-500" />
                   )}
-
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -1245,26 +1083,20 @@ function PublicTrackPageInner() {
                   </span>
 
                 </div>
-
               </div>
             )}
-
           </div>
 
-          {/* =================================================
-              MAP
-          ================================================= */}
+          {/* MAP */}
 
           <LiveMap
             pickup={{
               ...result.pickup,
-              address:
-                result.pickup.city,
+              address: result.pickup.city,
             }}
             dropoff={{
               ...result.dropoff,
-              address:
-                result.dropoff.city,
+              address: result.dropoff.city,
             }}
             driverPosition={
               result.lastLocation
@@ -1272,14 +1104,12 @@ function PublicTrackPageInner() {
             locationHistory={
               result.locationHistory
             }
-            isInternational={
-              isInternationalShipment(result)
-            }
+            isInternational={isInternationalShipment(
+              result
+            )}
           />
 
-          {/* =================================================
-              TRACKING TIMELINE
-          ================================================= */}
+          {/* TRACKING TIMELINE */}
 
           <div
             className={`overflow-hidden rounded-2xl border shadow-lg ${
@@ -1291,9 +1121,7 @@ function PublicTrackPageInner() {
             }`}
           >
 
-            {/* =================================================
-                TIMELINE HEADER
-            ================================================= */}
+            {/* HEADER */}
 
             <div
               className={
@@ -1302,43 +1130,33 @@ function PublicTrackPageInner() {
                   : "bg-gradient-to-r from-orange-700 via-orange-600 to-orange-700 p-5 text-white"
               }
             >
-
               <div className="flex items-center justify-between gap-3">
 
-                <div>
+                <div className="flex items-center gap-2">
 
-                  <div className="flex items-center gap-2">
-
-                    <div
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"
-                    >
-                      {internationalCargo ? (
-                        <Globe2 className="h-5 w-5" />
-                      ) : (
-                        <PackageSearch className="h-5 w-5" />
-                      )}
-                    </div>
-
-                    <div>
-
-                      <h2 className="text-sm font-bold">
-                        Tracking Timeline
-                      </h2>
-
-                      <p
-                        className={`mt-0.5 text-xs ${
-                          dhlExpress
-                            ? "text-blue-100"
-                            : "text-orange-100"
-                        }`}
-                      >
-                        Complete shipment history
-                      </p>
-
-                    </div>
-
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
+                    {internationalCargo ? (
+                      <Globe2 className="h-5 w-5" />
+                    ) : (
+                      <PackageSearch className="h-5 w-5" />
+                    )}
                   </div>
 
+                  <div>
+                    <h2 className="text-sm font-bold">
+                      Tracking Timeline
+                    </h2>
+
+                    <p
+                      className={`mt-0.5 text-xs ${
+                        dhlExpress
+                          ? "text-blue-100"
+                          : "text-orange-100"
+                      }`}
+                    >
+                      Complete shipment history
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1350,16 +1168,11 @@ function PublicTrackPageInner() {
                   <span className="rounded-full border border-white/20 bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
                     Live Tracking
                   </span>
-
                 </div>
-
               </div>
-
             </div>
 
-            {/* =================================================
-                TIMELINE CONTENT
-            ================================================= */}
+            {/* CONTENT */}
 
             <div
               className={
@@ -1369,9 +1182,7 @@ function PublicTrackPageInner() {
               }
             >
 
-              {/* =================================================
-                  JOURNEY SUMMARY
-              ================================================= */}
+              {/* JOURNEY SUMMARY */}
 
               <div
                 className={`mb-5 rounded-xl border bg-white/70 p-4 shadow-sm backdrop-blur-sm ${
@@ -1380,7 +1191,6 @@ function PublicTrackPageInner() {
                     : "border-orange-200"
                 }`}
               >
-
                 <div className="flex items-center gap-3">
 
                   <div
@@ -1394,7 +1204,6 @@ function PublicTrackPageInner() {
                   </div>
 
                   <div>
-
                     <p
                       className={`text-sm font-bold ${
                         dhlExpress
@@ -1414,19 +1223,14 @@ function PublicTrackPageInner() {
                     >
                       Follow every update from pickup to delivery.
                     </p>
-
                   </div>
 
                 </div>
-
               </div>
 
-              {/* =================================================
-                  EVENTS
-              ================================================= */}
+              {/* EVENTS */}
 
               {trackingEvents.length === 0 ? (
-
                 <div
                   className={`rounded-xl border bg-white/70 p-6 text-center text-sm shadow-sm ${
                     dhlExpress
@@ -1437,9 +1241,7 @@ function PublicTrackPageInner() {
                   No tracking events are
                   available yet.
                 </div>
-
               ) : (
-
                 <ol
                   className={`relative ml-2 space-y-7 border-l-2 pl-7 ${
                     dhlExpress
@@ -1447,10 +1249,8 @@ function PublicTrackPageInner() {
                       : "border-orange-300"
                   }`}
                 >
-
                   {trackingEvents.map(
                     (event, index) => {
-
                       const isLatest =
                         index === 0;
 
@@ -1465,11 +1265,6 @@ function PublicTrackPageInner() {
                           key={`${event.source}-${event.status}-${event.at}-${index}`}
                           className="relative"
                         >
-
-                          {/* =================================================
-                              TIMELINE DOT
-                          ================================================= */}
-
                           <span
                             className={`absolute -left-[39px] top-0 flex h-8 w-8 items-center justify-center rounded-full border-4 text-white shadow-md ${
                               dhlExpress
@@ -1483,29 +1278,21 @@ function PublicTrackPageInner() {
                                 : ""
                             }`}
                           >
-
                             {isLatest ? (
                               <CheckCircle2 className="h-4 w-4" />
                             ) : (
                               <span className="h-2 w-2 rounded-full bg-white" />
                             )}
-
                           </span>
-
-                          {/* =================================================
-                              EVENT CARD
-                          ================================================= */}
 
                           <div
                             className={`rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${style.card}`}
                           >
-
                             <div className="flex flex-wrap items-center gap-2">
 
                               <span
                                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm ${style.badge}`}
                               >
-
                                 {getTrackingEventIcon(
                                   event
                                 )}
@@ -1513,7 +1300,6 @@ function PublicTrackPageInner() {
                                 {getTrackingEventLabel(
                                   event
                                 )}
-
                               </span>
 
                               {isLatest && (
@@ -1527,7 +1313,6 @@ function PublicTrackPageInner() {
                                   Current
                                 </span>
                               )}
-
                             </div>
 
                             <p
@@ -1550,21 +1335,15 @@ function PublicTrackPageInner() {
                                 event.at
                               ).toLocaleString()}
                             </p>
-
                           </div>
-
                         </li>
                       );
                     }
                   )}
-
                 </ol>
-
               )}
 
-              {/* =================================================
-                  AUTO UPDATE MESSAGE
-              ================================================= */}
+              {/* AUTO UPDATE */}
 
               <div
                 className={`mt-6 flex items-center justify-center gap-2 rounded-xl border bg-white/70 px-4 py-3 text-xs font-semibold shadow-sm ${
@@ -1573,7 +1352,6 @@ function PublicTrackPageInner() {
                     : "border-orange-200 text-orange-700"
                 }`}
               >
-
                 <RefreshCw
                   className={`h-3.5 w-3.5 ${
                     refreshing
@@ -1583,18 +1361,11 @@ function PublicTrackPageInner() {
                 />
 
                 Tracking updates automatically
-
               </div>
-
             </div>
-
           </div>
 
-          {/* =================================================
-              INTERNATIONAL CARGO EXPLANATION
-              
-              DHL EXPLANATION REMOVED COMPLETELY.
-          ================================================= */}
+          {/* INTERNATIONAL EXPLANATION */}
 
           {internationalCargo && (
             <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
@@ -1604,7 +1375,6 @@ function PublicTrackPageInner() {
                 <Globe2 className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
 
                 <div>
-
                   <p className="text-sm font-semibold text-orange-900">
                     International Cargo
                   </p>
@@ -1617,17 +1387,13 @@ function PublicTrackPageInner() {
                     destination processing, and final
                     delivery.
                   </p>
-
                 </div>
 
               </div>
-
             </div>
           )}
 
-          {/* =================================================
-              CONTACT
-          ================================================= */}
+          {/* CONTACT */}
 
           <p className="text-center text-xs text-neutral-400">
 

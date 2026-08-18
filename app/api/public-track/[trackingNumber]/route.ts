@@ -18,7 +18,9 @@ export async function GET(
   {
     params,
   }: {
-    params: Promise<{ trackingNumber: string }>;
+    params: Promise<{
+      trackingNumber: string;
+    }>;
   }
 ) {
   try {
@@ -57,11 +59,39 @@ export async function GET(
       );
     }
 
-    /*
-     * DHL TRACKING HISTORY
-     */
+    /* =========================================================
+       NORMALIZE SERVICE TYPE
+    ========================================================= */
+
+    const serviceType = order.serviceType;
+
+    const isDhlExpress =
+      serviceType === "dhl_express";
+
+    const isInternationalCargo =
+      serviceType === "international";
+
+    /* =========================================================
+       NORMAL ORDER STATUS HISTORY
+    ========================================================= */
+
+    const statusHistory =
+      (order.statusHistory ?? []).map(
+        (h: {
+          status: OrderStatus;
+          at: Date;
+        }) => ({
+          status: h.status,
+          at: h.at.toISOString(),
+        })
+      );
+
+    /* =========================================================
+       DHL STATUS HISTORY
+    ========================================================= */
+
     const dhlStatusHistory =
-      order.dhlStatusHistory?.map(
+      (order.dhlStatusHistory ?? []).map(
         (h: {
           status: DHLStatus;
           at: Date;
@@ -71,13 +101,17 @@ export async function GET(
           at: h.at.toISOString(),
           description: h.description,
         })
-      ) ?? [];
+      );
 
-    /*
-     * INTERNATIONAL CARGO TRACKING HISTORY
-     */
+    /* =========================================================
+       INTERNATIONAL CARGO STATUS HISTORY
+    ========================================================= */
+
     const internationalStatusHistory =
-      order.internationalStatusHistory?.map(
+      (
+        order.internationalStatusHistory ??
+        []
+      ).map(
         (h: {
           status: InternationalStatus;
           at: Date;
@@ -87,45 +121,36 @@ export async function GET(
           at: h.at.toISOString(),
           description: h.description,
         })
-      ) ?? [];
+      );
 
-    /*
-     * UNIFIED CUSTOMER TRACKING TIMELINE
-     *
-     * Combines:
-     *
-     * 1. Normal CityBike shipment statuses
-     * 2. DHL Express statuses
-     * 3. International cargo statuses
-     *
-     * The customer can therefore see international
-     * cargo tracking in the same timeline style.
-     */
-    const trackingEvents: TrackingEvent[] = [
-      /*
-       * NORMAL CITYBIKE STATUS HISTORY
-       */
-      ...order.statusHistory.map(
+    /* =========================================================
+       BUILD INTERNAL EVENTS
+    ========================================================= */
+
+    const internalEvents: TrackingEvent[] =
+      statusHistory.map(
         (
           h: {
             status: OrderStatus;
-            at: Date;
+            at: string;
           }
         ): TrackingEvent => ({
           status: h.status,
-          at: h.at.toISOString(),
+          at: h.at,
+          source: "internal",
           description:
             getOrderStatusDescription(
               h.status
             ),
-          source: "internal",
         })
-      ),
+      );
 
-      /*
-       * DHL EXPRESS HISTORY
-       */
-      ...dhlStatusHistory.map(
+    /* =========================================================
+       BUILD DHL EVENTS
+    ========================================================= */
+
+    const dhlEvents: TrackingEvent[] =
+      dhlStatusHistory.map(
         (
           h: {
             status: DHLStatus;
@@ -135,19 +160,21 @@ export async function GET(
         ): TrackingEvent => ({
           status: h.status,
           at: h.at,
+          source: "dhl",
           description:
             h.description ||
             getDHLStatusDescription(
               h.status
             ),
-          source: "dhl",
         })
-      ),
+      );
 
-      /*
-       * INTERNATIONAL CARGO HISTORY
-       */
-      ...internationalStatusHistory.map(
+    /* =========================================================
+       BUILD INTERNATIONAL CARGO EVENTS
+    ========================================================= */
+
+    const internationalEvents: TrackingEvent[] =
+      internationalStatusHistory.map(
         (
           h: {
             status: InternationalStatus;
@@ -157,23 +184,92 @@ export async function GET(
         ): TrackingEvent => ({
           status: h.status,
           at: h.at,
+          source: "international",
           description:
             h.description ||
             getInternationalStatusDescription(
               h.status
             ),
-          source: "international",
         })
-      ),
-    ].sort(
+      );
+
+    /* =========================================================
+       CUSTOMER-FACING TIMELINE
+       
+       DOMESTIC:
+       Internal events only.
+
+       DHL EXPRESS:
+       Internal + DHL events.
+
+       INTERNATIONAL CARGO:
+       Internal + International events.
+    ========================================================= */
+
+    let trackingEvents: TrackingEvent[];
+
+    if (isDhlExpress) {
+      trackingEvents = [
+        ...internalEvents,
+        ...dhlEvents,
+      ];
+    } else if (isInternationalCargo) {
+      trackingEvents = [
+        ...internalEvents,
+        ...internationalEvents,
+      ];
+    } else {
+      trackingEvents = [
+        ...internalEvents,
+      ];
+    }
+
+    /* =========================================================
+       SORT NEWEST FIRST
+    ========================================================= */
+
+    trackingEvents.sort(
       (a, b) =>
         new Date(b.at).getTime() -
         new Date(a.at).getTime()
     );
 
-    /*
-     * PUBLIC TRACKING RESULT
-     */
+    /* =========================================================
+       LOCATION HISTORY
+    ========================================================= */
+
+    const locationHistory =
+      (order.locationHistory ?? []).map(
+        (point: {
+          lat: number;
+          lng: number;
+          updatedAt: Date;
+        }) => ({
+          lat: point.lat,
+          lng: point.lng,
+          updatedAt:
+            point.updatedAt.toISOString(),
+        })
+      );
+
+    /* =========================================================
+       LAST LOCATION
+    ========================================================= */
+
+    const lastLocation =
+      order.lastLocation
+        ? {
+            lat: order.lastLocation.lat,
+            lng: order.lastLocation.lng,
+            updatedAt:
+              order.lastLocation.updatedAt.toISOString(),
+          }
+        : null;
+
+    /* =========================================================
+       PUBLIC TRACKING RESULT
+    ========================================================= */
+
     const result: PublicTrackingResult = {
       id: order._id.toString(),
 
@@ -183,49 +279,53 @@ export async function GET(
       status:
         order.status as OrderStatus,
 
-      /*
-       * NORMAL STATUS HISTORY
-       */
-      statusHistory:
-        order.statusHistory.map(
-          (h: {
-            status: OrderStatus;
-            at: Date;
-          }) => ({
-            status: h.status,
-            at: h.at.toISOString(),
-          })
-        ),
+      /* -------------------------------------------------------
+         NORMAL STATUS HISTORY
+      ------------------------------------------------------- */
 
-      /*
-       * DHL HISTORY
-       */
+      statusHistory,
+
+      /* -------------------------------------------------------
+         DHL HISTORY
+      ------------------------------------------------------- */
+
       dhlStatusHistory,
 
-      /*
-       * INTERNATIONAL CARGO HISTORY
-       */
+      /* -------------------------------------------------------
+         INTERNATIONAL CARGO HISTORY
+      ------------------------------------------------------- */
+
       internationalStatusHistory,
 
-      /*
-       * UNIFIED TIMELINE
-       */
+      /* -------------------------------------------------------
+         CUSTOMER-FACING UNIFIED TIMELINE
+      ------------------------------------------------------- */
+
       trackingEvents,
 
-      /*
-       * EXTERNAL CARRIER INFORMATION
-       */
+      /* -------------------------------------------------------
+         EXTERNAL TRACKING INFORMATION
+      ------------------------------------------------------- */
+
       externalTrackingNumber:
         order.externalTrackingNumber,
 
       carrierName:
         order.carrierName,
 
+      /* -------------------------------------------------------
+         SERVICE INFORMATION
+      ------------------------------------------------------- */
+
       serviceType:
         order.serviceType,
 
       isInternational:
-        order.isInternational,
+        Boolean(order.isInternational),
+
+      /* -------------------------------------------------------
+         PACKAGE INFORMATION
+      ------------------------------------------------------- */
 
       packageDescription:
         order.packageDescription,
@@ -237,11 +337,14 @@ export async function GET(
         order.pickupTime.toISOString(),
 
       eta:
-        order.eta?.toISOString(),
+        order.eta
+          ? order.eta.toISOString()
+          : undefined,
 
-      /*
-       * PICKUP LOCATION
-       */
+      /* -------------------------------------------------------
+         PICKUP LOCATION
+      ------------------------------------------------------- */
+
       pickup: {
         city:
           order.pickup.city,
@@ -256,9 +359,10 @@ export async function GET(
           order.pickup.lng,
       },
 
-      /*
-       * DROPOFF LOCATION
-       */
+      /* -------------------------------------------------------
+         DROPOFF LOCATION
+      ------------------------------------------------------- */
+
       dropoff: {
         city:
           order.dropoff.city,
@@ -273,45 +377,29 @@ export async function GET(
           order.dropoff.lng,
       },
 
-      /*
-       * LOCATION HISTORY
-       */
-      locationHistory:
-        order.locationHistory?.map(
-          (point: {
-            lat: number;
-            lng: number;
-            updatedAt: Date;
-          }) => ({
-            lat: point.lat,
-            lng: point.lng,
-            updatedAt:
-              point.updatedAt.toISOString(),
-          })
-        ),
+      /* -------------------------------------------------------
+         LOCATION HISTORY
+      ------------------------------------------------------- */
 
-      /*
-       * LAST KNOWN LOCATION
-       */
-      lastLocation:
-        order.lastLocation
-          ? {
-              lat:
-                order.lastLocation.lat,
+      locationHistory,
 
-              lng:
-                order.lastLocation.lng,
+      /* -------------------------------------------------------
+         LAST KNOWN LOCATION
+      ------------------------------------------------------- */
 
-              updatedAt:
-                order.lastLocation.updatedAt.toISOString(),
-            }
-          : null,
+      lastLocation,
+
+      /* -------------------------------------------------------
+         CREATED AT
+      ------------------------------------------------------- */
 
       createdAt:
         order.createdAt.toISOString(),
     };
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      status: 200,
+    });
   } catch (error) {
     console.error(
       "Tracking API error:",
@@ -330,9 +418,10 @@ export async function GET(
   }
 }
 
-/*
- * INTERNAL ORDER STATUS DESCRIPTIONS
- */
+/* =========================================================
+   INTERNAL ORDER STATUS DESCRIPTIONS
+========================================================= */
+
 function getOrderStatusDescription(
   status: OrderStatus
 ): string {
@@ -409,9 +498,10 @@ function getOrderStatusDescription(
   );
 }
 
-/*
- * DHL STATUS DESCRIPTIONS
- */
+/* =========================================================
+   DHL STATUS DESCRIPTIONS
+========================================================= */
+
 function getDHLStatusDescription(
   status: DHLStatus
 ): string {
@@ -444,12 +534,16 @@ function getDHLStatusDescription(
       "An exception has occurred with the shipment.",
   };
 
-  return descriptions[status];
+  return (
+    descriptions[status] ||
+    "Shipment status updated."
+  );
 }
 
-/*
- * INTERNATIONAL CARGO STATUS DESCRIPTIONS
- */
+/* =========================================================
+   INTERNATIONAL CARGO STATUS DESCRIPTIONS
+========================================================= */
+
 function getInternationalStatusDescription(
   status: InternationalStatus
 ): string {
@@ -479,5 +573,8 @@ function getInternationalStatusDescription(
       "An exception has occurred with the shipment.",
   };
 
-  return descriptions[status];
+  return (
+    descriptions[status] ||
+    "International shipment status updated."
+  );
 }

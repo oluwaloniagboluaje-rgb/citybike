@@ -1,21 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+
 import { useAuth } from "@/context/AuthContext";
+
 import {
   OrderClient,
   OrderStatus,
   SERVICE_TYPE_LABELS,
 } from "@/types";
+
 import StatusBadge from "@/components/ui/statusbadge";
 import LiveMap from "@/components/map/livemapClient";
 import ChatBox from "@/components/chat/chatBox";
+
 import {
   supabase,
   orderLocationChannel,
 } from "@/libs/supabaseClient";
+
 import {
   ArrowLeft,
   Package,
@@ -26,16 +37,36 @@ import {
   Plane,
   Ship,
   FileCheck,
-  Warehouse,
-  MapPin,
-  CircleCheck,
 } from "lucide-react";
 
-/**
- * ---------------------------------------------------------
- * SERVICE TYPE HELPERS
- * ---------------------------------------------------------
+/* =========================================================
+   TYPES
+========================================================= */
+
+/*
+ * The backend status route supports an optional description
+ * on every status history entry.
+ *
+ * Some older versions of OrderClient may not include
+ * "description" in the TypeScript type yet, so we extend
+ * the history entry locally here.
  */
+type OrderHistoryEntry = {
+  status: OrderStatus;
+  at: string | Date;
+  description?: string;
+};
+
+type OrderWithHistoryDescription = Omit<
+  OrderClient,
+  "statusHistory"
+> & {
+  statusHistory?: OrderHistoryEntry[];
+};
+
+/* =========================================================
+   SERVICE HELPERS
+========================================================= */
 
 function isInternationalCargo(order: OrderClient) {
   return order.serviceType === "international";
@@ -53,202 +84,275 @@ function isInternationalService(order: OrderClient) {
   );
 }
 
-/**
- * ---------------------------------------------------------
- * TIMELINE DESCRIPTIONS
- * ---------------------------------------------------------
- *
- * IMPORTANT:
- *
- * International Cargo and DHL Express use the same underlying
- * OrderStatus values, but they DO NOT use the same customer-facing
- * tracking language.
- *
- * International Cargo:
- *   Cargo received
- *   Documentation / customs
- *   Export processing
- *   International transit
- *   Import customs
- *   Destination delivery
- *
- * DHL Express:
- *   Shipment picked up
- *   Origin facility
- *   Departed facility
- *   DHL transit
- *   Destination facility
- *   Customs clearance
- *   Out for delivery
- *
- * Domestic:
- *   Existing normal delivery terminology.
- */
+/* =========================================================
+   TIMELINE DESCRIPTION
+========================================================= */
 
 function getTimelineDescription(
   status: OrderStatus,
   order: OrderClient
 ): string {
-  /**
-   * -------------------------------------------------------
-   * INTERNATIONAL CARGO
-   * -------------------------------------------------------
-   */
+  /* -------------------------------------------------------
+     INTERNATIONAL CARGO
+  ------------------------------------------------------- */
+
   if (isInternationalCargo(order)) {
     switch (status) {
       case "pending":
-        return "Cargo shipment created";
+        return "International cargo shipment created.";
+
+      case "shipment_created":
+        return "International cargo shipment documentation has been created.";
+
+      case "awaiting_batching":
+        return "Cargo is awaiting batching and export preparation.";
+
+      case "added_to_batch":
+        return "Cargo has been added to an international shipment batch.";
+
+      case "ready_for_shipping":
+        return "Cargo is ready for international shipping.";
+
+      case "left_origin":
+        return `Cargo has left ${order.pickup.city} and is proceeding through export processing.`;
 
       case "confirmed":
-        return "International cargo shipment confirmed by CityBike Logistics";
+        return "International cargo shipment confirmed by CityBike Logistics.";
 
       case "assigned":
-        return "Cargo handling team assigned to this shipment";
+        return "Cargo handling team assigned to this shipment.";
+
+      case "assigned_courier":
+        return "A courier has been assigned to handle the shipment.";
 
       case "picked_up":
-        return `Cargo received from ${order.pickup.city}`;
+        return `Cargo received from ${order.pickup.city}.`;
 
       case "awaiting_dispatch":
-        return "Awaiting export documentation and shipment processing";
+        return "Cargo is awaiting export documentation and shipment processing.";
 
       case "dispatched":
-        return "Cargo dispatched for international export processing";
+        return "Cargo dispatched for international export processing.";
 
       case "in_transit":
-        return `Cargo in international transit to ${order.dropoff.city}, ${order.dropoff.country}`;
+        return `Cargo is in international transit to ${order.dropoff.city}, ${order.dropoff.country}.`;
+
+      case "landed":
+        return `Cargo has arrived in ${order.dropoff.country} and is proceeding through destination processing.`;
+
+      case "customs_processing":
+        return `Cargo is currently undergoing customs processing in ${order.dropoff.country}.`;
 
       case "destination_hub":
-        return `Cargo arrived at the destination hub in ${order.dropoff.city}`;
+        return `Cargo arrived at the destination hub in ${order.dropoff.city}.`;
 
       case "out_for_delivery":
-        return `Cargo cleared for final delivery in ${order.dropoff.city}`;
+        return `Cargo cleared for final delivery in ${order.dropoff.city}.`;
+
+      case "delivered_by_courier":
+        return `Cargo has been delivered by courier in ${order.dropoff.city}.`;
+
+      case "delivery_confirmed":
+        return "Delivery has been confirmed.";
 
       case "delivered":
-        return `Cargo delivered to ${order.dropoff.city}, ${order.dropoff.country}`;
+        return `Cargo delivered to ${order.dropoff.city}, ${order.dropoff.country}.`;
 
       case "cancelled":
-        return "International cargo shipment cancelled";
+        return "International cargo shipment cancelled.";
 
       default:
-        return "International cargo status updated";
+        return "International cargo status updated.";
     }
   }
 
-  /**
-   * -------------------------------------------------------
-   * DHL EXPRESS
-   * -------------------------------------------------------
-   */
+  /* -------------------------------------------------------
+     DHL EXPRESS
+  ------------------------------------------------------- */
+
   if (isDhlExpress(order)) {
     switch (status) {
       case "pending":
-        return "DHL Express shipment created";
+        return "DHL Express shipment created.";
+
+      case "shipment_created":
+        return "DHL Express shipment documentation has been created.";
+
+      case "awaiting_batching":
+        return "Shipment is awaiting processing.";
+
+      case "added_to_batch":
+        return "Shipment has been added to the processing batch.";
+
+      case "ready_for_shipping":
+        return "Shipment is ready for dispatch.";
 
       case "confirmed":
-        return "DHL Express shipment confirmed";
+        return "DHL Express shipment confirmed.";
 
       case "assigned":
-        return "Shipment assigned for pickup";
+        return "Shipment assigned for pickup.";
+
+      case "assigned_courier":
+        return "Courier assigned to the shipment.";
 
       case "picked_up":
-        return `Shipment picked up from ${order.pickup.city}`;
+        return `Shipment picked up from ${order.pickup.city}.`;
 
       case "awaiting_dispatch":
-        return "Shipment processed at the origin facility";
+        return "Shipment processed at the origin facility.";
 
       case "dispatched":
-        return "Shipment departed the origin facility";
+        return "Shipment departed the origin facility.";
+
+      case "left_origin":
+        return "Shipment has left the origin country.";
 
       case "in_transit":
-        return `Shipment in DHL Express transit to ${order.dropoff.city}`;
+        return `Shipment is in DHL Express transit to ${order.dropoff.city}.`;
+
+      case "landed":
+        return `Shipment has arrived in ${order.dropoff.country}.`;
+
+      case "customs_processing":
+        return `Shipment is undergoing customs processing in ${order.dropoff.country}.`;
 
       case "destination_hub":
-        return `Shipment arrived at the destination facility in ${order.dropoff.city}`;
+        return `Shipment arrived at the destination facility in ${order.dropoff.city}.`;
 
       case "out_for_delivery":
-        return `DHL Express shipment is out for delivery in ${order.dropoff.city}`;
+        return `DHL Express shipment is out for delivery in ${order.dropoff.city}.`;
+
+      case "delivered_by_courier":
+        return `DHL Express shipment has been delivered by courier.`;
+
+      case "delivery_confirmed":
+        return "DHL Express delivery has been confirmed.";
 
       case "delivered":
-        return `DHL Express shipment delivered to ${order.dropoff.city}`;
+        return `DHL Express shipment delivered to ${order.dropoff.city}.`;
 
       case "cancelled":
-        return "DHL Express shipment cancelled";
+        return "DHL Express shipment cancelled.";
 
       default:
-        return "DHL Express shipment status updated";
+        return "DHL Express shipment status updated.";
     }
   }
 
-  /**
-   * -------------------------------------------------------
-   * DOMESTIC DELIVERY
-   * -------------------------------------------------------
-   */
+  /* -------------------------------------------------------
+     DOMESTIC
+  ------------------------------------------------------- */
+
   switch (status) {
     case "pending":
-      return "Order placed";
+      return "Order placed.";
+
+    case "shipment_created":
+      return "Shipment has been created.";
+
+    case "awaiting_batching":
+      return "Order is awaiting batching.";
+
+    case "added_to_batch":
+      return "Order has been added to a delivery batch.";
+
+    case "ready_for_shipping":
+      return "Package is ready for shipping.";
+
+    case "left_origin":
+      return "Package has left the origin facility.";
 
     case "confirmed":
-      return "Order confirmed by CityBike Logistics";
+      return "Order confirmed by CityBike Logistics.";
 
     case "assigned":
-      return "Driver assigned to this delivery";
+      return "Driver assigned to this delivery.";
+
+    case "assigned_courier":
+      return "Courier assigned to this delivery.";
 
     case "picked_up":
-      return `Picked up from ${order.pickup.city}`;
+      return `Package picked up from ${order.pickup.city}.`;
 
     case "awaiting_dispatch":
-      return "Awaiting dispatch for the next delivery stage";
+      return "Awaiting dispatch for the next delivery stage.";
 
     case "dispatched":
-      return "Package dispatched";
+      return "Package dispatched.";
 
     case "in_transit":
-      return `In transit to ${order.dropoff.city}`;
+      return `Package is in transit to ${order.dropoff.city}.`;
+
+    case "landed":
+      return `Package has arrived in ${order.dropoff.city}.`;
+
+    case "customs_processing":
+      return "Package is undergoing customs processing.";
 
     case "destination_hub":
-      return `Arrived at destination hub in ${order.dropoff.city}`;
+      return `Arrived at destination hub in ${order.dropoff.city}.`;
 
     case "out_for_delivery":
-      return `Out for delivery in ${order.dropoff.city}`;
+      return `Out for delivery in ${order.dropoff.city}.`;
+
+    case "delivered_by_courier":
+      return "Package delivered by courier.";
+
+    case "delivery_confirmed":
+      return "Delivery has been confirmed.";
 
     case "delivered":
-      return `Delivered to ${order.dropoff.city}`;
+      return `Delivered to ${order.dropoff.city}.`;
 
     case "cancelled":
-      return "Order cancelled";
+      return "Order cancelled.";
 
     default:
-      return "Status updated";
+      return "Status updated.";
   }
 }
 
-/**
- * ---------------------------------------------------------
- * TIMELINE STAGE LABEL
- * ---------------------------------------------------------
- *
- * This gives the customer a clearer stage name above the
- * description.
- */
+/* =========================================================
+   TIMELINE STAGE
+========================================================= */
 
 function getTimelineStage(
   status: OrderStatus,
   order: OrderClient
 ): string {
-  /**
-   * INTERNATIONAL CARGO
-   */
+  /* -------------------------------------------------------
+     INTERNATIONAL CARGO
+  ------------------------------------------------------- */
+
   if (isInternationalCargo(order)) {
     switch (status) {
       case "pending":
         return "Shipment Created";
+
+      case "shipment_created":
+        return "Documentation Created";
+
+      case "awaiting_batching":
+        return "Awaiting Batching";
+
+      case "added_to_batch":
+        return "Added to Shipment Batch";
+
+      case "ready_for_shipping":
+        return "Ready for Shipping";
+
+      case "left_origin":
+        return "Left Origin";
 
       case "confirmed":
         return "Cargo Confirmed";
 
       case "assigned":
         return "Cargo Handling Assigned";
+
+      case "assigned_courier":
+        return "Courier Assigned";
 
       case "picked_up":
         return "Cargo Received";
@@ -262,11 +366,23 @@ function getTimelineStage(
       case "in_transit":
         return "International Transit";
 
+      case "landed":
+        return "Shipment Landed";
+
+      case "customs_processing":
+        return "Customs Processing";
+
       case "destination_hub":
-        return "Destination Hub / Import Processing";
+        return "Destination Hub";
 
       case "out_for_delivery":
         return "Final Delivery";
+
+      case "delivered_by_courier":
+        return "Delivered by Courier";
+
+      case "delivery_confirmed":
+        return "Delivery Confirmed";
 
       case "delivered":
         return "Delivered";
@@ -279,19 +395,38 @@ function getTimelineStage(
     }
   }
 
-  /**
-   * DHL EXPRESS
-   */
+  /* -------------------------------------------------------
+     DHL EXPRESS
+  ------------------------------------------------------- */
+
   if (isDhlExpress(order)) {
     switch (status) {
       case "pending":
         return "Shipment Created";
+
+      case "shipment_created":
+        return "Shipment Documentation";
+
+      case "awaiting_batching":
+        return "Awaiting Processing";
+
+      case "added_to_batch":
+        return "Added to Processing Batch";
+
+      case "ready_for_shipping":
+        return "Ready for Shipping";
+
+      case "left_origin":
+        return "Left Origin";
 
       case "confirmed":
         return "Shipment Confirmed";
 
       case "assigned":
         return "Pickup Assigned";
+
+      case "assigned_courier":
+        return "Courier Assigned";
 
       case "picked_up":
         return "Shipment Picked Up";
@@ -305,11 +440,23 @@ function getTimelineStage(
       case "in_transit":
         return "DHL Express Transit";
 
+      case "landed":
+        return "Shipment Landed";
+
+      case "customs_processing":
+        return "Customs Clearance";
+
       case "destination_hub":
         return "Destination Facility";
 
       case "out_for_delivery":
         return "Out for Delivery";
+
+      case "delivered_by_courier":
+        return "Delivered by Courier";
+
+      case "delivery_confirmed":
+        return "Delivery Confirmed";
 
       case "delivered":
         return "Delivered";
@@ -322,18 +469,37 @@ function getTimelineStage(
     }
   }
 
-  /**
-   * DOMESTIC
-   */
+  /* -------------------------------------------------------
+     DOMESTIC
+  ------------------------------------------------------- */
+
   switch (status) {
     case "pending":
       return "Order Created";
+
+    case "shipment_created":
+      return "Shipment Created";
+
+    case "awaiting_batching":
+      return "Awaiting Batching";
+
+    case "added_to_batch":
+      return "Added to Batch";
+
+    case "ready_for_shipping":
+      return "Ready for Shipping";
+
+    case "left_origin":
+      return "Left Origin";
 
     case "confirmed":
       return "Order Confirmed";
 
     case "assigned":
       return "Driver Assigned";
+
+    case "assigned_courier":
+      return "Courier Assigned";
 
     case "picked_up":
       return "Picked Up";
@@ -347,11 +513,23 @@ function getTimelineStage(
     case "in_transit":
       return "In Transit";
 
+    case "landed":
+      return "Arrived";
+
+    case "customs_processing":
+      return "Customs Processing";
+
     case "destination_hub":
       return "Destination Hub";
 
     case "out_for_delivery":
       return "Out for Delivery";
+
+    case "delivered_by_courier":
+      return "Delivered by Courier";
+
+    case "delivery_confirmed":
+      return "Delivery Confirmed";
 
     case "delivered":
       return "Delivered";
@@ -364,11 +542,9 @@ function getTimelineStage(
   }
 }
 
-/**
- * ---------------------------------------------------------
- * SERVICE VISUAL CONFIGURATION
- * ---------------------------------------------------------
- */
+/* =========================================================
+   SERVICE PRESENTATION
+========================================================= */
 
 function getServicePresentation(order: OrderClient) {
   if (isInternationalCargo(order)) {
@@ -379,8 +555,6 @@ function getServicePresentation(order: OrderClient) {
       icon: Ship,
       badgeClass:
         "border-orange-200 bg-orange-50 text-orange-700",
-      timelineClass:
-        "border-orange-200",
       activeDotClass:
         "bg-orange-500",
       iconClass:
@@ -396,8 +570,6 @@ function getServicePresentation(order: OrderClient) {
       icon: Plane,
       badgeClass:
         "border-red-200 bg-red-50 text-red-700",
-      timelineClass:
-        "border-red-200",
       activeDotClass:
         "bg-red-500",
       iconClass:
@@ -406,13 +578,12 @@ function getServicePresentation(order: OrderClient) {
   }
 
   return {
-    title: SERVICE_TYPE_LABELS[order.serviceType],
+    title:
+      SERVICE_TYPE_LABELS[order.serviceType],
     description: "Delivery tracking",
     icon: Truck,
     badgeClass:
       "border-neutral-200 bg-neutral-50 text-neutral-700",
-    timelineClass:
-      "border-neutral-200",
     activeDotClass:
       "bg-orange-500",
     iconClass:
@@ -420,23 +591,24 @@ function getServicePresentation(order: OrderClient) {
   };
 }
 
-/**
- * ---------------------------------------------------------
- * ORDER DETAIL PAGE
- * ---------------------------------------------------------
- */
+/* =========================================================
+   ORDER DETAIL PAGE
+========================================================= */
 
 export default function OrderDetailPage() {
   const { user, loading } = useAuth();
+
   const router = useRouter();
   const params = useParams();
 
-  const orderId = params?.orderId as string;
+  const orderId =
+    params?.orderId as string;
 
   const [order, setOrder] =
     useState<OrderClient | null>(null);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
   const [copied, setCopied] =
     useState(false);
@@ -447,53 +619,85 @@ export default function OrderDetailPage() {
       lng: number;
     } | null>(null);
 
-  /**
-   * -------------------------------------------------------
-   * FETCH ORDER
-   * -------------------------------------------------------
-   */
+  /* =======================================================
+     SORT HISTORY
 
-  const fetchOrder = useCallback(async () => {
-    if (!orderId) return;
+     IMPORTANT:
+     This hook MUST be before every conditional return.
+     This fixes the React "change in the order of Hooks"
+     error.
+  ======================================================= */
 
-    try {
-      const res = await fetch(
-        `/api/orders/${orderId}`
+  const sortedStatusHistory =
+    useMemo<OrderHistoryEntry[]>(() => {
+      const currentOrder =
+        order as OrderWithHistoryDescription | null;
+
+      return [
+        ...(currentOrder?.statusHistory ?? []),
+      ].sort(
+        (a, b) =>
+          new Date(a.at).getTime() -
+          new Date(b.at).getTime()
       );
+    }, [order]);
 
-      if (res.ok) {
-        const data = await res.json();
+  /* =======================================================
+     FETCH ORDER
+  ======================================================= */
 
-        setOrder(data.order);
+  const fetchOrder =
+    useCallback(async () => {
+      if (!orderId) return;
 
-        if (data.order.lastLocation) {
-          setDriverPosition({
-            lat: data.order.lastLocation.lat,
-            lng: data.order.lastLocation.lng,
-          });
+      try {
+        const res = await fetch(
+          `/api/orders/${orderId}`,
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
+
+        if (res.ok) {
+          const data =
+            await res.json();
+
+          setOrder(data.order);
+
+          if (
+            data.order?.lastLocation
+          ) {
+            setDriverPosition({
+              lat:
+                data.order.lastLocation
+                  .lat,
+              lng:
+                data.order.lastLocation
+                  .lng,
+            });
+          }
+        } else {
+          const data =
+            await res
+              .json()
+              .catch(() => ({}));
+
+          setError(
+            data.error ||
+              "Could not load order"
+          );
         }
-      } else {
-        const data = await res
-          .json()
-          .catch(() => ({}));
-
+      } catch {
         setError(
-          data.error ||
-            "Could not load order"
+          "Could not connect to the server."
         );
       }
-    } catch {
-      setError(
-        "Could not connect to the server."
-      );
-    }
-  }, [orderId]);
+    }, [orderId]);
 
-  /**
-   * -------------------------------------------------------
-   * CANCEL ORDER
-   * -------------------------------------------------------
-   */
+  /* =======================================================
+     CANCEL ORDER
+  ======================================================= */
 
   async function cancelOrder() {
     if (!order) return;
@@ -505,40 +709,47 @@ export default function OrderDetailPage() {
 
     if (!confirmCancel) return;
 
-    const res = await fetch(
-      `/api/orders/${orderId}/status`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          status: "cancelled",
-        }),
+    try {
+      const res = await fetch(
+        `/api/orders/${orderId}/status`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            status: "cancelled",
+            description:
+              "Order cancelled by customer.",
+          }),
+        }
+      );
+
+      if (res.ok) {
+        await fetchOrder();
+        setError("");
+      } else {
+        const data =
+          await res
+            .json()
+            .catch(() => ({}));
+
+        setError(
+          data.error ||
+            "Could not cancel order"
+        );
       }
-    );
-
-    if (res.ok) {
-      await fetchOrder();
-      setError("");
-    } else {
-      const data = await res
-        .json()
-        .catch(() => ({}));
-
+    } catch {
       setError(
-        data.error ||
-          "Could not cancel order"
+        "Could not connect to the server."
       );
     }
   }
 
-  /**
-   * -------------------------------------------------------
-   * AUTH + INITIAL LOAD
-   * -------------------------------------------------------
-   */
+  /* =======================================================
+     AUTH + INITIAL LOAD
+  ======================================================= */
 
   useEffect(() => {
     if (!loading && !user) {
@@ -556,11 +767,9 @@ export default function OrderDetailPage() {
     fetchOrder,
   ]);
 
-  /**
-   * -------------------------------------------------------
-   * LIVE DRIVER LOCATION
-   * -------------------------------------------------------
-   */
+  /* =======================================================
+     LIVE DRIVER LOCATION
+  ======================================================= */
 
   useEffect(() => {
     if (!orderId) return;
@@ -575,71 +784,92 @@ export default function OrderDetailPage() {
         "broadcast",
         { event: "location" },
         (payload) => {
-          setDriverPosition(
+          const location =
             payload.payload as {
               lat: number;
               lng: number;
-            }
-          );
+            };
+
+          if (
+            typeof location?.lat ===
+              "number" &&
+            typeof location?.lng ===
+              "number"
+          ) {
+            setDriverPosition(
+              location
+            );
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(
+        channel
+      );
     };
   }, [orderId]);
 
-  /**
-   * -------------------------------------------------------
-   * POLLING FALLBACK
-   * -------------------------------------------------------
-   */
+  /* =======================================================
+     POLLING FALLBACK
+  ======================================================= */
 
   useEffect(() => {
-    if (!orderId) return;
+    if (!orderId || !user) return;
 
-    const interval = setInterval(
-      fetchOrder,
-      10000
-    );
+    const interval =
+      setInterval(
+        fetchOrder,
+        10000
+      );
 
     return () =>
       clearInterval(interval);
-  }, [fetchOrder, orderId]);
+  }, [
+    fetchOrder,
+    orderId,
+    user,
+  ]);
 
-  /**
-   * -------------------------------------------------------
-   * COPY TRACKING NUMBER
-   * -------------------------------------------------------
-   */
+  /* =======================================================
+     COPY TRACKING NUMBER
+  ======================================================= */
 
   function copyTrackingNumber() {
     if (!order) return;
 
     navigator.clipboard
-      .writeText(order.trackingNumber)
+      .writeText(
+        order.trackingNumber
+      )
       .then(() => {
         setCopied(true);
 
         setTimeout(
-          () => setCopied(false),
+          () =>
+            setCopied(false),
           2000
+        );
+      })
+      .catch(() => {
+        setError(
+          "Could not copy tracking number."
         );
       });
   }
 
-  /**
-   * -------------------------------------------------------
-   * LOADING / AUTH
-   * -------------------------------------------------------
-   */
+  /* =======================================================
+     LOADING / AUTH
+
+     These returns are now AFTER ALL HOOKS.
+  ======================================================= */
 
   if (loading || !user) {
     return null;
   }
 
-  if (error) {
+  if (error && !order) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
         <p className="text-neutral-600">
@@ -664,11 +894,9 @@ export default function OrderDetailPage() {
     );
   }
 
-  /**
-   * -------------------------------------------------------
-   * DASHBOARD LINK
-   * -------------------------------------------------------
-   */
+  /* =======================================================
+     DASHBOARD
+  ======================================================= */
 
   const dashboardHref =
     user.role === "admin"
@@ -677,16 +905,15 @@ export default function OrderDetailPage() {
         ? "/dashboard/driver"
         : "/dashboard/customer";
 
-  /**
-   * -------------------------------------------------------
-   * SERVICE PRESENTATION
-   * -------------------------------------------------------
-   */
+  /* =======================================================
+     SERVICE
+  ======================================================= */
 
   const service =
     getServicePresentation(order);
 
-  const ServiceIcon = service.icon;
+  const ServiceIcon =
+    service.icon;
 
   const internationalCargo =
     isInternationalCargo(order);
@@ -694,29 +921,15 @@ export default function OrderDetailPage() {
   const dhlExpress =
     isDhlExpress(order);
 
-  /**
-   * -------------------------------------------------------
-   * SORT HISTORY
-   * -------------------------------------------------------
-   *
-   * Oldest → newest.
-   */
-
-  const sortedStatusHistory =
-    useMemo(() => {
-      return [...(order.statusHistory || [])]
-        .sort(
-          (a, b) =>
-            new Date(a.at).getTime() -
-            new Date(b.at).getTime()
-        );
-    }, [order.statusHistory]);
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      {/* ---------------------------------------------------
-          BACK TO DASHBOARD
-      --------------------------------------------------- */}
+      {/* ===================================================
+          BACK
+      =================================================== */}
 
       <Link
         href={dashboardHref}
@@ -726,9 +939,9 @@ export default function OrderDetailPage() {
         Back to dashboard
       </Link>
 
-      {/* ---------------------------------------------------
+      {/* ===================================================
           HEADER
-      --------------------------------------------------- */}
+      =================================================== */}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -739,7 +952,9 @@ export default function OrderDetailPage() {
           </h1>
 
           <button
-            onClick={copyTrackingNumber}
+            onClick={
+              copyTrackingNumber
+            }
             title="Copy tracking number"
             className="mt-1 flex items-center gap-1.5 font-mono text-sm font-semibold tracking-wide text-neutral-700 hover:text-orange-600"
           >
@@ -776,8 +991,6 @@ export default function OrderDetailPage() {
             status={order.status}
           />
 
-          {/* SERVICE TYPE BADGE */}
-
           <span
             className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${service.badgeClass}`}
           >
@@ -788,9 +1001,9 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* ---------------------------------------------------
-          SERVICE TRACKING INFORMATION
-      --------------------------------------------------- */}
+      {/* ===================================================
+          INTERNATIONAL / DHL INFO
+      =================================================== */}
 
       {(internationalCargo ||
         dhlExpress) && (
@@ -798,11 +1011,9 @@ export default function OrderDetailPage() {
           className={`mt-5 rounded-lg border p-4 ${service.badgeClass}`}
         >
           <div className="flex items-start gap-3">
-            <div className="mt-0.5">
-              <ServiceIcon
-                className={`h-5 w-5 ${service.iconClass}`}
-              />
-            </div>
+            <ServiceIcon
+              className={`mt-0.5 h-5 w-5 ${service.iconClass}`}
+            />
 
             <div>
               <p className="text-sm font-semibold">
@@ -818,18 +1029,19 @@ export default function OrderDetailPage() {
                   Your cargo is tracked through
                   pickup, export processing,
                   international transit,
-                  destination processing and
-                  final delivery.
+                  destination processing
+                  and final delivery.
                 </p>
               )}
 
               {dhlExpress && (
                 <p className="mt-2 text-xs leading-5">
-                  Your DHL Express shipment is
-                  tracked through pickup,
-                  facility processing, transit,
-                  destination processing and
-                  final delivery.
+                  Your DHL Express shipment
+                  is tracked through pickup,
+                  facility processing,
+                  transit, destination
+                  processing and final
+                  delivery.
                 </p>
               )}
             </div>
@@ -837,17 +1049,19 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ---------------------------------------------------
+      {/* ===================================================
           ORDER INFORMATION
-      --------------------------------------------------- */}
+      =================================================== */}
 
       <div className="mt-4 flex flex-wrap gap-4 text-sm text-neutral-600">
         <span
           className={`rounded-md px-2 py-1 text-xs font-medium ${service.badgeClass}`}
         >
-          {SERVICE_TYPE_LABELS[
-            order.serviceType
-          ]}
+          {
+            SERVICE_TYPE_LABELS[
+              order.serviceType
+            ]
+          }
         </span>
 
         <span className="flex items-center gap-1.5">
@@ -877,13 +1091,9 @@ export default function OrderDetailPage() {
         )}
       </div>
 
-      {/* ---------------------------------------------------
-          DHL EXTERNAL TRACKING NUMBER
-      ---------------------------------------------------
-      
-      This is deliberately only shown for admin.
-      It is separate from CityBike's own tracking number.
-      --------------------------------------------------- */}
+      {/* ===================================================
+          DHL TRACKING
+      =================================================== */}
 
       {user.role === "admin" &&
         dhlExpress &&
@@ -895,7 +1105,9 @@ export default function OrderDetailPage() {
             </span>{" "}
 
             <span className="font-mono">
-              {order.externalTrackingNumber}
+              {
+                order.externalTrackingNumber
+              }
             </span>
 
             {order.carrierName && (
@@ -907,9 +1119,9 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-      {/* ---------------------------------------------------
-          TIME INFORMATION
-      --------------------------------------------------- */}
+      {/* ===================================================
+          TIME
+      =================================================== */}
 
       <div className="mt-4 flex flex-wrap gap-4 text-sm text-neutral-600">
         <span>
@@ -929,12 +1141,14 @@ export default function OrderDetailPage() {
         )}
       </div>
 
-      {/* ---------------------------------------------------
-          CANCEL ORDER
-      --------------------------------------------------- */}
+      {/* ===================================================
+          CANCEL
+      =================================================== */}
 
-      {order.status !== "delivered" &&
-        order.status !== "cancelled" && (
+      {order.status !==
+        "delivered" &&
+        order.status !==
+          "cancelled" && (
           <div className="mt-4">
             <button
               onClick={cancelOrder}
@@ -951,15 +1165,17 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-      {/* ---------------------------------------------------
+      {/* ===================================================
           MAP + CHAT
-      --------------------------------------------------- */}
+      =================================================== */}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <LiveMap
           pickup={order.pickup}
           dropoff={order.dropoff}
-          driverPosition={driverPosition}
+          driverPosition={
+            driverPosition
+          }
           locationHistory={
             order.locationHistory
           }
@@ -973,9 +1189,9 @@ export default function OrderDetailPage() {
         />
       </div>
 
-      {/* ---------------------------------------------------
-          PACKAGE PHOTOS
-      --------------------------------------------------- */}
+      {/* ===================================================
+          PHOTOS
+      =================================================== */}
 
       {(order.pickupPhotoUrl ||
         order.deliveryPhotoUrl) && (
@@ -1003,7 +1219,7 @@ export default function OrderDetailPage() {
                       order.pickupPhotoUrl
                     }
                     alt="Package at pickup"
-                    className="w-full rounded-md border border-neutral-200 object-cover"
+                    className="h-auto w-full rounded-md border border-neutral-200 object-cover"
                   />
                 </a>
               </div>
@@ -1027,7 +1243,7 @@ export default function OrderDetailPage() {
                       order.deliveryPhotoUrl
                     }
                     alt="Package at delivery"
-                    className="w-full rounded-md border border-neutral-200 object-cover"
+                    className="h-auto w-full rounded-md border border-neutral-200 object-cover"
                   />
                 </a>
               </div>
@@ -1036,9 +1252,9 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      {/* ---------------------------------------------------
+      {/* ===================================================
           TRACKING TIMELINE
-      --------------------------------------------------- */}
+      =================================================== */}
 
       <div
         className={`mt-6 rounded-lg border bg-white p-4 ${
@@ -1049,7 +1265,9 @@ export default function OrderDetailPage() {
               : "border-neutral-200"
         }`}
       >
-        {/* TIMELINE HEADER */}
+        {/* =================================================
+            TIMELINE HEADER
+        ================================================= */}
 
         <div className="mb-5 flex items-start gap-3">
           <div
@@ -1085,6 +1303,10 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
+        {/* =================================================
+            NO HISTORY
+        ================================================= */}
+
         {sortedStatusHistory.length ===
         0 ? (
           <div className="rounded-md border border-dashed border-neutral-200 p-6 text-center text-sm text-neutral-500">
@@ -1101,30 +1323,49 @@ export default function OrderDetailPage() {
             }`}
           >
             {sortedStatusHistory.map(
-              (h, i) => {
+              (history, index) => {
                 const isLast =
-                  i ===
+                  index ===
                   sortedStatusHistory.length -
                     1;
 
                 const stage =
                   getTimelineStage(
-                    h.status,
+                    history.status,
                     order
                   );
 
+                /*
+                 * THIS IS THE IMPORTANT FIX.
+                 *
+                 * If the admin/driver supplied a
+                 * description from the status route,
+                 * display that description.
+                 *
+                 * Otherwise use the automatic
+                 * service-specific description.
+                 */
+                const customDescription =
+                  typeof history.description ===
+                    "string"
+                    ? history.description.trim()
+                    : "";
+
                 const description =
+                  customDescription ||
                   getTimelineDescription(
-                    h.status,
+                    history.status,
                     order
                   );
 
                 return (
                   <li
-                    key={`${h.status}-${h.at}-${i}`}
+                    key={`${history.status}-${history.at}-${index}`}
                     className="relative"
                   >
-                    {/* TIMELINE DOT */}
+                    {/* -------------------------------------
+                        DOT
+                    ------------------------------------- */}
 
                     <span
                       className={`absolute -left-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white ${
@@ -1138,7 +1379,9 @@ export default function OrderDetailPage() {
                       )}
                     </span>
 
-                    {/* DATE */}
+                    {/* -------------------------------------
+                        STAGE + DATE
+                    ------------------------------------- */}
 
                     <div className="flex flex-wrap items-center gap-2">
                       <span
@@ -1157,26 +1400,56 @@ export default function OrderDetailPage() {
 
                       <span className="text-xs text-neutral-400">
                         {new Date(
-                          h.at
+                          history.at
                         ).toLocaleString()}
                       </span>
                     </div>
 
-                    {/* STATUS BADGE */}
+                    {/* -------------------------------------
+                        STATUS BADGE
+                    ------------------------------------- */}
 
                     <div className="mt-1.5">
                       <StatusBadge
-                        status={h.status}
+                        status={
+                          history.status
+                        }
                       />
                     </div>
 
-                    {/* DESCRIPTION */}
+                    {/* -------------------------------------
+                        DESCRIPTION
+
+                        Custom admin/driver description
+                        appears here.
+                    ------------------------------------- */}
 
                     <p className="mt-2 text-sm leading-5 text-neutral-600">
                       {description}
                     </p>
 
-                    {/* EXTRA INTERNATIONAL INFORMATION */}
+                    {/* -------------------------------------
+                        SHOW "CUSTOM UPDATE" WHEN MANUAL
+                        DESCRIPTION EXISTS
+                    ------------------------------------- */}
+
+                    {customDescription && (
+                      <div
+                        className={`mt-2 inline-flex rounded-md px-2 py-1 text-[11px] font-medium ${
+                          internationalCargo
+                            ? "bg-orange-50 text-orange-700"
+                            : dhlExpress
+                              ? "bg-red-50 text-red-700"
+                              : "bg-neutral-100 text-neutral-600"
+                        }`}
+                      >
+                        Shipment update
+                      </div>
+                    )}
+
+                    {/* -------------------------------------
+                        INTERNATIONAL TAGS
+                    ------------------------------------- */}
 
                     {isLast &&
                       internationalCargo && (
@@ -1193,7 +1466,9 @@ export default function OrderDetailPage() {
                         </div>
                       )}
 
-                    {/* EXTRA DHL INFORMATION */}
+                    {/* -------------------------------------
+                        DHL TAGS
+                    ------------------------------------- */}
 
                     {isLast &&
                       dhlExpress && (
@@ -1216,9 +1491,9 @@ export default function OrderDetailPage() {
           </ol>
         )}
 
-        {/* -------------------------------------------------
-            SERVICE-SPECIFIC TRACKING LEGEND
-        ------------------------------------------------- */}
+        {/* =================================================
+            INTERNATIONAL LEGEND
+        ================================================= */}
 
         {internationalCargo && (
           <div className="mt-6 rounded-md border border-orange-100 bg-orange-50/50 p-3">
@@ -1233,14 +1508,19 @@ export default function OrderDetailPage() {
                 <p className="mt-1 text-xs leading-5 text-orange-700">
                   Cargo tracking includes
                   shipment receipt, export
-                  documentation, international
-                  transit, destination processing
+                  documentation,
+                  international transit,
+                  destination processing
                   and final delivery.
                 </p>
               </div>
             </div>
           </div>
         )}
+
+        {/* =================================================
+            DHL LEGEND
+        ================================================= */}
 
         {dhlExpress && (
           <div className="mt-6 rounded-md border border-red-100 bg-red-50/50 p-3">
@@ -1255,8 +1535,9 @@ export default function OrderDetailPage() {
                 <p className="mt-1 text-xs leading-5 text-red-700">
                   DHL Express tracking includes
                   pickup, origin facility
-                  processing, transit, destination
-                  facility processing and final
+                  processing, transit,
+                  destination facility
+                  processing and final
                   delivery.
                 </p>
               </div>
