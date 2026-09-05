@@ -192,6 +192,11 @@ type OrderCategory =
   | "international"
   | "dhl_express";
 
+type OrderStatusFilter =
+  | "active"
+  | "delivered"
+  | "all";
+
 function getOrderCategory(
   serviceType: ServiceType
 ): Exclude<OrderCategory, "all"> {
@@ -340,6 +345,12 @@ export default function AdminDashboard() {
   const [updatingStatus, setUpdatingStatus] =
     useState<string | null>(null);
 
+  const [deletingOrderId, setDeletingOrderId] =
+    useState<string | null>(null);
+
+  const [orderPendingDeletion, setOrderPendingDeletion] =
+    useState<OrderClient | null>(null);
+
   const [showCreateForm, setShowCreateForm] =
     useState(false);
 
@@ -348,6 +359,9 @@ export default function AdminDashboard() {
 
   const [orderCategory, setOrderCategory] =
     useState<OrderCategory>("all");
+
+  const [orderStatusFilter, setOrderStatusFilter] =
+    useState<OrderStatusFilter>("active");
 
   const [customerSearch, setCustomerSearch] =
     useState("");
@@ -547,6 +561,50 @@ export default function AdminDashboard() {
         title: "Could not cancel order",
         message: "Please check your connection and try again.",
       });
+    }
+  }
+
+  function deleteOrder(order: OrderClient) {
+    setOrderPendingDeletion(order);
+  }
+
+  async function confirmDeleteOrder() {
+    const order = orderPendingDeletion;
+
+    if (!order) return;
+
+    setOrderPendingDeletion(null);
+    setDeletingOrderId(order._id);
+
+    try {
+      const res = await fetch(
+        `/api/orders/${order._id}`,
+        { method: "DELETE" }
+      );
+
+      if (res.ok) {
+        await fetchOrders();
+      } else {
+        const data = await res.json().catch(() => ({}));
+
+        setModal({
+          open: true,
+          variant: "error",
+          title: "Could not delete order",
+          message:
+            data.error || "Failed to delete order.",
+        });
+      }
+    } catch {
+      setModal({
+        open: true,
+        variant: "error",
+        title: "Could not delete order",
+        message:
+          "Please check your connection and try again.",
+      });
+    } finally {
+      setDeletingOrderId(null);
     }
   }
 
@@ -1044,7 +1102,17 @@ export default function AdminDashboard() {
     orders,
     dateFilter
   ).filter((order) => {
-    if (order.status === "delivered") {
+    if (
+      orderStatusFilter === "active" &&
+      order.status === "delivered"
+    ) {
+      return false;
+    }
+
+    if (
+      orderStatusFilter === "delivered" &&
+      order.status !== "delivered"
+    ) {
       return false;
     }
 
@@ -1172,8 +1240,54 @@ export default function AdminDashboard() {
       <div className="mt-4 flex flex-wrap gap-2">
         {[
           {
+            value: "active",
+            label: "Active Orders",
+            count: orders.filter(
+              (order) => order.status !== "delivered"
+            ).length,
+          },
+          {
+            value: "delivered",
+            label: "Delivered",
+            count: orders.filter(
+              (order) => order.status === "delivered"
+            ).length,
+          },
+          {
             value: "all",
-            label: "All Active Orders",
+            label: "All Orders",
+            count: orders.length,
+          },
+        ].map((tab) => {
+          const active =
+            orderStatusFilter === tab.value;
+
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() =>
+                setOrderStatusFilter(
+                  tab.value as OrderStatusFilter
+                )
+              }
+              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                active
+                  ? "bg-neutral-800 text-white"
+                  : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+              }`}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        {[
+          {
+            value: "all",
+            label: "All Services",
           },
           {
             value: "local",
@@ -1262,8 +1376,8 @@ export default function AdminDashboard() {
         {orders.length > 0 &&
           filteredOrders.length === 0 && (
             <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
-              No active orders match your search,
-              category, or date filter.
+              No {orderStatusFilter} orders match your
+              search, category, or date filter.
             </p>
           )}
 
@@ -2234,6 +2348,21 @@ export default function AdminDashboard() {
                             </button>
                           )}
 
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void deleteOrder(o)
+                          }
+                          disabled={
+                            deletingOrderId === o._id
+                          }
+                          className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {deletingOrderId === o._id
+                            ? "Deleting..."
+                            : "Delete Order"}
+                        </button>
+
                         <Link
                           href={`/orders/${o._id}`}
                           className="ml-auto rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
@@ -2256,6 +2385,53 @@ export default function AdminDashboard() {
           setModal(CLOSED_MODAL)
         }
       />
+
+      {orderPendingDeletion && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          role="presentation"
+          onClick={() =>
+            setOrderPendingDeletion(null)
+          }
+        >
+          <div
+            className="w-full max-w-sm rounded-lg bg-white p-5 shadow-lg"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-order-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              id="delete-order-title"
+              className="text-base font-semibold text-neutral-900"
+            >
+              Delete this order?
+            </h2>
+            <p className="mt-2 text-sm text-neutral-600">
+              Order #{orderPendingDeletion.trackingNumber} will be permanently
+              removed from order history.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setOrderPendingDeletion(null)
+                }
+                className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Keep Order
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteOrder()}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Delete Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
