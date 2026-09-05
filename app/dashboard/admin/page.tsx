@@ -1423,16 +1423,27 @@ export default function AdminDashboard() {
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-lg font-bold text-neutral-900">
-                            {customerHeading}
-                          </p>
+                          {o.serviceType === "international" ? (
+                            <Link
+                              href={`/orders/${o._id}`}
+                              className="text-lg font-bold text-neutral-900 hover:underline"
+                            >
+                              {customerHeading}
+                            </Link>
+                          ) : (
+                            <>
+                              <p className="text-lg font-bold text-neutral-900">
+                                {customerHeading}
+                              </p>
 
-                          <Link
-                            href={`/orders/${o._id}`}
-                            className="mt-0.5 block font-medium text-neutral-800 hover:underline"
-                          >
-                            {o.packageDescription}
-                          </Link>
+                              <Link
+                                href={`/orders/${o._id}`}
+                                className="mt-0.5 block font-medium text-neutral-800 hover:underline"
+                              >
+                                {o.packageDescription}
+                              </Link>
+                            </>
+                          )}
 
                           <p className="mt-1 font-mono text-xs font-semibold tracking-wide text-neutral-500">
                             #{o.trackingNumber}
