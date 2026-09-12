@@ -354,6 +354,9 @@ export default function AdminDashboard() {
   const [showCreateForm, setShowCreateForm] =
     useState(false);
 
+  const [showControlsDrawer, setShowControlsDrawer] =
+    useState(false);
+
   const [dateFilter, setDateFilter] =
     useState<DateFilterValue>("today");
 
@@ -365,6 +368,9 @@ export default function AdminDashboard() {
 
   const [customerSearch, setCustomerSearch] =
     useState("");
+
+  const [recentSearches, setRecentSearches] =
+    useState<string[]>([]);
 
   const [uploadingPhotoFor, setUploadingPhotoFor] =
     useState<string | null>(null);
@@ -474,6 +480,34 @@ export default function AdminDashboard() {
       }
     })();
   }, [user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const savedSearches =
+        window.localStorage.getItem(
+          "admin-recent-searches"
+        );
+
+      if (savedSearches) {
+        setRecentSearches(
+          JSON.parse(savedSearches)
+        );
+      }
+    } catch {
+      // Ignore malformed local storage data.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    window.localStorage.setItem(
+      "admin-recent-searches",
+      JSON.stringify(recentSearches)
+    );
+  }, [recentSearches]);
 
   useEffect(() => {
     if (!user) return;
@@ -1098,82 +1132,130 @@ export default function AdminDashboard() {
 
   if (loading || !user) return null;
 
-  const filteredOrders = filterOrdersByDate(
-    orders,
-    dateFilter
-  ).filter((order) => {
-    if (
-      orderStatusFilter === "active" &&
-      order.status === "delivered"
-    ) {
-      return false;
-    }
+  const getFilteredOrdersForSearch =
+    useCallback(
+      (searchTerm: string) => {
+        const search =
+          searchTerm.trim().toLowerCase();
 
-    if (
-      orderStatusFilter === "delivered" &&
-      order.status !== "delivered"
-    ) {
-      return false;
-    }
+        return filterOrdersByDate(
+          orders,
+          dateFilter
+        ).filter((order) => {
+          if (
+            orderStatusFilter === "active" &&
+            order.status === "delivered"
+          ) {
+            return false;
+          }
 
-    if (orderCategory !== "all") {
-      if (
-        getOrderCategory(order.serviceType) !==
-        orderCategory
-      ) {
-        return false;
+          if (
+            orderStatusFilter === "delivered" &&
+            order.status !== "delivered"
+          ) {
+            return false;
+          }
+
+          if (orderCategory !== "all") {
+            if (
+              getOrderCategory(order.serviceType) !==
+              orderCategory
+            ) {
+              return false;
+            }
+          }
+
+          if (!search) {
+            return true;
+          }
+
+          const customerName =
+            order.customer?.name || "";
+
+          const senderName =
+            order.senderName || "";
+
+          const customerPhone =
+            order.customer?.phone || "";
+
+          const senderPhone =
+            order.senderPhone || "";
+
+          const customerEmail =
+            order.customer?.email || "";
+
+          const trackingNumber =
+            order.trackingNumber || "";
+
+          const packageDescription =
+            order.packageDescription || "";
+
+          const recipientName =
+            order.recipientName || "";
+
+          const recipientPhone =
+            order.recipientPhone || "";
+
+          return [
+            customerName,
+            senderName,
+            customerPhone,
+            senderPhone,
+            customerEmail,
+            trackingNumber,
+            packageDescription,
+            recipientName,
+            recipientPhone,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(search);
+        });
+      },
+      [dateFilter, orderCategory, orderStatusFilter, orders]
+    );
+
+  const filteredOrders =
+    getFilteredOrdersForSearch(customerSearch);
+
+  const handleSearchSubmit = useCallback(() => {
+    const term = customerSearch.trim();
+
+    if (!term) return;
+
+    setRecentSearches((prev) => {
+      const deduped = [
+        term,
+        ...prev.filter(
+          (item) =>
+            item.toLowerCase() !== term.toLowerCase()
+        ),
+      ];
+
+      return deduped.slice(0, 5);
+    });
+
+    setDateFilter("all");
+    setOrderStatusFilter("all");
+
+    const matches =
+      getFilteredOrdersForSearch(term);
+
+    const firstMatch = matches[0];
+
+    if (firstMatch) {
+      const target = document.querySelector(
+        `[data-order-id="${firstMatch._id}"]`
+      );
+
+      if (target) {
+        target.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
       }
     }
-
-    const search =
-      customerSearch.trim().toLowerCase();
-
-    if (!search) {
-      return true;
-    }
-
-    const customerName =
-      order.customer?.name || "";
-
-    const senderName =
-      order.senderName || "";
-
-    const customerPhone =
-      order.customer?.phone || "";
-
-    const senderPhone =
-      order.senderPhone || "";
-
-    const customerEmail =
-      order.customer?.email || "";
-
-    const trackingNumber =
-      order.trackingNumber || "";
-
-    const packageDescription =
-      order.packageDescription || "";
-
-    const recipientName =
-      order.recipientName || "";
-
-    const recipientPhone =
-      order.recipientPhone || "";
-
-    return [
-      customerName,
-      senderName,
-      customerPhone,
-      senderPhone,
-      customerEmail,
-      trackingNumber,
-      packageDescription,
-      recipientName,
-      recipientPhone,
-    ]
-      .join(" ")
-      .toLowerCase()
-      .includes(search);
-  });
+  }, [customerSearch, getFilteredOrdersForSearch]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -1213,14 +1295,94 @@ export default function AdminDashboard() {
 
         <button
           type="button"
-          onClick={() =>
-            setShowCreateForm((s) => !s)
-          }
-          className="flex items-center gap-1.5 rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+          onClick={() => setShowControlsDrawer(true)}
+          className="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50"
         >
-          <Plus className="h-4 w-4" />
-          Create Order for Client
+          <Search className="h-4 w-4" />
+          Filters & Search
         </button>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+
+            <input
+              type="search"
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              placeholder="Search by customer, phone, email, tracking number, package or recipient..."
+              className="w-full rounded-md border border-neutral-300 bg-white py-2.5 pl-9 pr-10 text-sm outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+            />
+
+            {customerSearch && (
+              <button
+                type="button"
+                onClick={() => setCustomerSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+                aria-label="Clear customer search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSearchSubmit}
+            disabled={!customerSearch.trim()}
+            className="rounded-md bg-orange-600 px-3.5 py-2.5 text-sm font-medium text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:bg-neutral-300"
+          >
+            Find Order
+          </button>
+        </div>
+
+        {customerSearch.trim() && (
+          <p className="mt-2 text-xs text-neutral-500">
+            Showing results for '{customerSearch}'
+          </p>
+        )}
+
+        {recentSearches.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+              Recent searches
+            </span>
+
+            {recentSearches.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => {
+                  setCustomerSearch(item);
+                  setDateFilter("all");
+                  setOrderStatusFilter("all");
+
+                  const matches =
+                    getFilteredOrdersForSearch(item);
+                  const firstMatch = matches[0];
+
+                  if (firstMatch) {
+                    const target = document.querySelector(
+                      `[data-order-id="${firstMatch._id}"]`
+                    );
+
+                    if (target) {
+                      target.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                      });
+                    }
+                  }
+                }}
+                className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-medium text-neutral-700 transition hover:bg-neutral-100"
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {showCreateForm && (
@@ -1232,139 +1394,198 @@ export default function AdminDashboard() {
         />
       )}
 
-      <OrderDateFilter
-        value={dateFilter}
-        onChange={setDateFilter}
-      />
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {[
-          {
-            value: "active",
-            label: "Active Orders",
-            count: orders.filter(
-              (order) => order.status !== "delivered"
-            ).length,
-          },
-          {
-            value: "delivered",
-            label: "Delivered",
-            count: orders.filter(
-              (order) => order.status === "delivered"
-            ).length,
-          },
-          {
-            value: "all",
-            label: "All Orders",
-            count: orders.length,
-          },
-        ].map((tab) => {
-          const active =
-            orderStatusFilter === tab.value;
-
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() =>
-                setOrderStatusFilter(
-                  tab.value as OrderStatusFilter
-                )
-              }
-              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                active
-                  ? "bg-neutral-800 text-white"
-                  : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-              }`}
-            >
-              {tab.label} ({tab.count})
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-2 flex flex-wrap gap-2">
-        {[
-          {
-            value: "all",
-            label: "All Services",
-          },
-          {
-            value: "local",
-            label: "Local Deliveries",
-          },
-          {
-            value: "interstate",
-            label: "Interstate Deliveries",
-          },
-          {
-            value: "international",
-            label: "International Cargo",
-          },
-          {
-            value: "dhl_express",
-            label: "DHL Express",
-          },
-        ].map((tab) => {
-          const active =
-            orderCategory === tab.value;
-
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() =>
-                setOrderCategory(
-                  tab.value as OrderCategory
-                )
-              }
-              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                active
-                  ? "bg-orange-600 text-white"
-                  : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-4">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-
-          <input
-            type="search"
-            value={customerSearch}
-            onChange={(e) =>
-              setCustomerSearch(e.target.value)
-            }
-            placeholder="Search customer by name, phone, email, tracking number..."
-            className="w-full rounded-md border border-neutral-300 bg-white py-2 pl-9 pr-10 text-sm outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+      {showControlsDrawer && (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            aria-label="Close admin controls"
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setShowControlsDrawer(false)}
           />
 
-          {customerSearch && (
-            <button
-              type="button"
-              onClick={() =>
-                setCustomerSearch("")
-              }
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
-              aria-label="Clear customer search"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+          <aside className="absolute right-0 top-0 h-full w-full max-w-md bg-neutral-100 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3">
+              <button
+                type="button"
+                aria-label="Close admin controls"
+                onClick={() => setShowControlsDrawer(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200 text-neutral-700 transition hover:bg-neutral-300"
+              >
+                <X className="h-5 w-5" />
+              </button>
 
-        {customerSearch.trim() && (
-          <p className="mt-1 text-xs text-neutral-500">
-            Showing results for '
-            {customerSearch}'
-          </p>
-        )}
-      </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-600">
+                  Controls
+                </span>
+              </div>
+            </div>
+
+            <div className="h-[calc(100%-120px)] overflow-y-auto px-4 pb-6 pt-4">
+              <div className="space-y-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowControlsDrawer(false);
+                    setShowCreateForm(true);
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-500"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Order for Client
+                </button>
+
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                    Date filter
+                  </p>
+                  <div className="mt-3">
+                    <OrderDateFilter
+                      value={dateFilter}
+                      onChange={setDateFilter}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                    Order status
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {[
+                      {
+                        value: "active",
+                        label: "Active Orders",
+                        count: orders.filter(
+                          (order) => order.status !== "delivered"
+                        ).length,
+                      },
+                      {
+                        value: "delivered",
+                        label: "Delivered",
+                        count: orders.filter(
+                          (order) => order.status === "delivered"
+                        ).length,
+                      },
+                      {
+                        value: "all",
+                        label: "All Orders",
+                        count: orders.length,
+                      },
+                    ].map((tab) => {
+                      const active = orderStatusFilter === tab.value;
+
+                      return (
+                        <button
+                          key={tab.value}
+                          type="button"
+                          onClick={() =>
+                            setOrderStatusFilter(
+                              tab.value as OrderStatusFilter
+                            )
+                          }
+                          className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                            active
+                              ? "bg-neutral-800 text-white"
+                              : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                          }`}
+                        >
+                          {tab.label} ({tab.count})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                    Service type
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {[
+                      {
+                        value: "all",
+                        label: "All Services",
+                      },
+                      {
+                        value: "local",
+                        label: "Local",
+                      },
+                      {
+                        value: "interstate",
+                        label: "Interstate",
+                      },
+                      {
+                        value: "international",
+                        label: "International",
+                      },
+                      {
+                        value: "dhl_express",
+                        label: "DHL Express",
+                      },
+                    ].map((tab) => {
+                      const active = orderCategory === tab.value;
+
+                      return (
+                        <button
+                          key={tab.value}
+                          type="button"
+                          onClick={() =>
+                            setOrderCategory(
+                              tab.value as OrderCategory
+                            )
+                          }
+                          className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                            active
+                              ? "bg-orange-600 text-white"
+                              : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                    Search
+                  </p>
+                  <div className="relative mt-3">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+
+                    <input
+                      type="search"
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      placeholder="Search customer, phone, email, tracking number..."
+                      className="w-full rounded-md border border-neutral-300 bg-white py-2 pl-9 pr-10 text-sm outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    />
+
+                    {customerSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomerSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+                        aria-label="Clear customer search"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {customerSearch.trim() && (
+                    <p className="mt-2 text-xs text-neutral-500">
+                      Showing results for '{customerSearch}'
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
 
       <div className="mt-4 space-y-6">
         {orders.length === 0 && (
@@ -1407,6 +1628,13 @@ export default function AdminDashboard() {
                     o.senderName ||
                     "Walk-in Customer";
 
+                  const orderStatusHistory =
+                    (
+                      o as OrderClient & {
+                        statusHistory?: StatusHistoryItem[];
+                      }
+                    ).statusHistory || [];
+
                   const internationalHistory =
                     (
                       o as OrderClient & {
@@ -1419,31 +1647,24 @@ export default function AdminDashboard() {
                   return (
                     <div
                       key={o._id}
+                      data-order-id={o._id}
                       className="rounded-lg border border-neutral-200 bg-white p-4"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          {o.serviceType === "international" ? (
-                            <Link
-                              href={`/orders/${o._id}`}
-                              className="text-lg font-bold text-neutral-900 hover:underline"
-                            >
-                              {customerHeading}
-                            </Link>
-                          ) : (
-                            <>
-                              <p className="text-lg font-bold text-neutral-900">
-                                {customerHeading}
-                              </p>
+                          <Link
+                            href={`/orders/${o._id}`}
+                            className="text-lg font-bold text-neutral-900 hover:underline"
+                          >
+                            {customerHeading}
+                          </Link>
 
-                              <Link
-                                href={`/orders/${o._id}`}
-                                className="mt-0.5 block font-medium text-neutral-800 hover:underline"
-                              >
-                                {o.packageDescription}
-                              </Link>
-                            </>
-                          )}
+                          <Link
+                            href={`/orders/${o._id}`}
+                            className="mt-0.5 block font-medium text-neutral-800 hover:underline"
+                          >
+                            {o.packageDescription}
+                          </Link>
 
                           <p className="mt-1 font-mono text-xs font-semibold tracking-wide text-neutral-500">
                             #{o.trackingNumber}
@@ -1511,6 +1732,49 @@ export default function AdminDashboard() {
                               Driver:{" "}
                               {o.driver.name}
                             </p>
+                          )}
+
+                          {orderStatusHistory.length > 0 && (
+                            <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+                                  Order history
+                                </p>
+
+                                <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] font-medium text-white">
+                                  {orderStatusHistory.length} updates
+                                </span>
+                              </div>
+
+                              <div className="mt-2 space-y-2">
+                                {orderStatusHistory.map((h, idx) => (
+                                  <div
+                                    key={`${h.status}-${String(h.at)}-${idx}`}
+                                    className="flex items-start gap-2 text-xs text-neutral-700"
+                                  >
+                                    <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-neutral-600" />
+
+                                    <div className="min-w-0">
+                                      <div>
+                                        <span className="font-semibold">
+                                          {STATUS_LABELS[h.status as OrderStatus] || h.status}
+                                        </span>
+                                        <span className="text-neutral-500"> • </span>
+                                        <span className="text-neutral-500">
+                                          {new Date(h.at).toLocaleString()}
+                                        </span>
+                                      </div>
+
+                                      {h.description && (
+                                        <p className="mt-0.5 text-[11px] leading-4 text-neutral-600">
+                                          {h.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
 
                           {(o.serviceType ===
@@ -1771,7 +2035,7 @@ export default function AdminDashboard() {
                               ================================================= */}
                           {o.serviceType ===
                             "international" && (
-                            <div className="mt-2 rounded-lg border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-3 shadow-sm">
+                            <div className="mt-2 rounded-lg border border-orange-200 bg-linear-to-br from-orange-50 to-amber-50 p-3 shadow-sm">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
                                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-600 text-white">
