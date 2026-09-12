@@ -13,6 +13,8 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 
 import {
+  DHL_STATUS_LABELS,
+  INTERNATIONAL_STATUS_LABELS,
   OrderClient,
   OrderStatus,
   SERVICE_TYPE_LABELS,
@@ -641,6 +643,34 @@ export default function OrderDetailPage() {
           new Date(b.at).getTime()
       );
     }, [order]);
+
+  const sortedInternationalHistory =
+    useMemo(
+      () =>
+        [
+          ...((order as OrderWithHistoryDescription | null)
+            ?.internationalStatusHistory ?? []),
+        ].sort(
+          (a, b) =>
+            new Date(a.at).getTime() -
+            new Date(b.at).getTime()
+        ),
+      [order]
+    );
+
+  const sortedDhlHistory =
+    useMemo(
+      () =>
+        [
+          ...((order as OrderWithHistoryDescription | null)
+            ?.dhlStatusHistory ?? []),
+        ].sort(
+          (a, b) =>
+            new Date(a.at).getTime() -
+            new Date(b.at).getTime()
+        ),
+      [order]
+    );
 
   /* =======================================================
      FETCH ORDER
@@ -1335,16 +1365,6 @@ export default function OrderDetailPage() {
                     order
                   );
 
-                /*
-                 * THIS IS THE IMPORTANT FIX.
-                 *
-                 * If the admin/driver supplied a
-                 * description from the status route,
-                 * display that description.
-                 *
-                 * Otherwise use the automatic
-                 * service-specific description.
-                 */
                 const customDescription =
                   typeof history.description ===
                     "string"
@@ -1363,10 +1383,6 @@ export default function OrderDetailPage() {
                     key={`${history.status}-${history.at}-${index}`}
                     className="relative"
                   >
-                    {/* -------------------------------------
-                        DOT
-                    ------------------------------------- */}
-
                     <span
                       className={`absolute -left-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white ${
                         isLast
@@ -1378,10 +1394,6 @@ export default function OrderDetailPage() {
                         <span className="h-1.5 w-1.5 rounded-full bg-white" />
                       )}
                     </span>
-
-                    {/* -------------------------------------
-                        STAGE + DATE
-                    ------------------------------------- */}
 
                     <div className="flex flex-wrap items-center gap-2">
                       <span
@@ -1405,10 +1417,6 @@ export default function OrderDetailPage() {
                       </span>
                     </div>
 
-                    {/* -------------------------------------
-                        STATUS BADGE
-                    ------------------------------------- */}
-
                     <div className="mt-1.5">
                       <StatusBadge
                         status={
@@ -1417,21 +1425,9 @@ export default function OrderDetailPage() {
                       />
                     </div>
 
-                    {/* -------------------------------------
-                        DESCRIPTION
-
-                        Custom admin/driver description
-                        appears here.
-                    ------------------------------------- */}
-
                     <p className="mt-2 text-sm leading-5 text-neutral-600">
                       {description}
                     </p>
-
-                    {/* -------------------------------------
-                        SHOW "CUSTOM UPDATE" WHEN MANUAL
-                        DESCRIPTION EXISTS
-                    ------------------------------------- */}
 
                     {customDescription && (
                       <div
@@ -1447,10 +1443,6 @@ export default function OrderDetailPage() {
                       </div>
                     )}
 
-                    {/* -------------------------------------
-                        INTERNATIONAL TAGS
-                    ------------------------------------- */}
-
                     {isLast &&
                       internationalCargo && (
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -1465,10 +1457,6 @@ export default function OrderDetailPage() {
                           </span>
                         </div>
                       )}
-
-                    {/* -------------------------------------
-                        DHL TAGS
-                    ------------------------------------- */}
 
                     {isLast &&
                       dhlExpress && (
@@ -1489,6 +1477,84 @@ export default function OrderDetailPage() {
               }
             )}
           </ol>
+        )}
+
+        {sortedInternationalHistory.length > 0 && (
+          <div className="mt-6 rounded-lg border border-orange-200 bg-orange-50/50 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Globe2 className="h-4 w-4 text-orange-600" />
+              <h3 className="text-sm font-semibold text-orange-800">
+                International cargo history
+              </h3>
+            </div>
+
+            <div className="space-y-3">
+              {sortedInternationalHistory.map(
+                (history, index) => (
+                  <div
+                    key={`${history.status}-${history.at}-${index}`}
+                    className="rounded-md border border-orange-200 bg-white px-3 py-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-orange-700">
+                        {INTERNATIONAL_STATUS_LABELS[
+                          history.status as keyof typeof INTERNATIONAL_STATUS_LABELS
+                        ] || history.status}
+                      </span>
+                      <span className="text-[11px] text-orange-500">
+                        {new Date(history.at).toLocaleString()}
+                      </span>
+                    </div>
+
+                    {(history.description || history.status) && (
+                      <p className="mt-1 text-xs leading-5 text-orange-700">
+                        {history.description || history.status}
+                      </p>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+        {sortedDhlHistory.length > 0 && (
+          <div className="mt-6 rounded-lg border border-red-200 bg-red-50/50 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Plane className="h-4 w-4 text-red-600" />
+              <h3 className="text-sm font-semibold text-red-800">
+                DHL Express history
+              </h3>
+            </div>
+
+            <div className="space-y-3">
+              {sortedDhlHistory.map(
+                (history, index) => (
+                  <div
+                    key={`${history.status}-${history.at}-${index}`}
+                    className="rounded-md border border-red-200 bg-white px-3 py-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-red-700">
+                        {DHL_STATUS_LABELS[
+                          history.status as keyof typeof DHL_STATUS_LABELS
+                        ] || history.status}
+                      </span>
+                      <span className="text-[11px] text-red-500">
+                        {new Date(history.at).toLocaleString()}
+                      </span>
+                    </div>
+
+                    {(history.description || history.status) && (
+                      <p className="mt-1 text-xs leading-5 text-red-700">
+                        {history.description || history.status}
+                      </p>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
         )}
 
         {/* =================================================

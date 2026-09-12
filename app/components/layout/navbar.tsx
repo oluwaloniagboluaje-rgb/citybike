@@ -1,29 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import ShipmentQuoteForm from "@/components/quote/ShipmentQuoteForm";
 import {
+  CreditCard,
   Home,
   LayoutDashboard,
   LogOut,
   Menu,
   PackageSearch,
   Settings,
+  ShieldAlert,
   ShoppingBag,
+  Trash2,
   UserCircle2,
   X,
 } from "lucide-react";
 
-type OffcanvasView = "menu" | "faqs" | "quote";
+type OffcanvasView = "menu" | "faqs" | "quote" | "profile" | "settings";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [offcanvasView, setOffcanvasView] = useState<OffcanvasView>("menu");
+  const [profileImage, setProfileImage] = useState<string>("");
 
   const dashboardHref = user
     ? user.role === "admin"
@@ -37,10 +41,70 @@ export default function Navbar() {
     { label: "Home", href: "/", icon: Home },
     { label: "Track Package", href: "/track", icon: PackageSearch },
     { label: "Dashboard", href: dashboardHref, icon: LayoutDashboard },
-    { label: "Orders", href: "/dashboard/customer", icon: ShoppingBag },
-    { label: "Profile", href: "/dashboard/customer", icon: UserCircle2 },
-    { label: "Settings", href: "/dashboard/admin", icon: Settings },
+    { label: "Orders", href: dashboardHref, icon: ShoppingBag },
+    { label: "Profile", href: "#", icon: UserCircle2, view: "profile" },
+    { label: "Settings", href: "#", icon: Settings, view: "settings" },
   ];
+
+  const paymentDetails = [
+    { label: "Account name", value: "Citybike logistics & Global Services" },
+    { label: "Bank", value: "First Bank" },
+    { label: "Account number", value: "2049217155" },
+    { label: "Account type", value: "Business Current" },
+  ];
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const savedProfileImage = window.localStorage.getItem("citybike-profile-image");
+      if (savedProfileImage) {
+        setProfileImage(savedProfileImage);
+      }
+    } catch {
+      // Ignore localStorage access failures.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      if (profileImage) {
+        window.localStorage.setItem("citybike-profile-image", profileImage);
+      } else {
+        window.localStorage.removeItem("citybike-profile-image");
+      }
+    } catch {
+      // Ignore localStorage write failures.
+    }
+  }, [profileImage]);
+
+  const profileInitials = user
+    ? user.name
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() || "")
+        .join("") || "C"
+    : "G";
+
+  function handleProfileImageUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setProfileImage(result);
+    };
+
+    reader.readAsDataURL(file);
+  }
 
   const faqItems = [
     {
@@ -126,9 +190,22 @@ export default function Navbar() {
               >
                 Dashboard
               </Link>
-              <span className="hidden text-sm text-neutral-400 sm:inline">
-                {user.name} · {user.role}
-              </span>
+              <div className="hidden items-center gap-3 sm:flex">
+                <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-neutral-700 bg-neutral-800">
+                  {profileImage ? (
+                    <img
+                      src={profileImage}
+                      alt={user.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-xs font-semibold text-neutral-200">{profileInitials}</span>
+                  )}
+                </div>
+                <span className="text-sm text-neutral-400">
+                  {user.name} · {user.role}
+                </span>
+              </div>
               <button
                 onClick={() => setShowLogoutModal(true)}
                 className="flex items-center gap-1 rounded-md border border-neutral-700 px-3 py-1.5 text-sm font-medium text-neutral-200 hover:bg-neutral-800"
@@ -210,13 +287,29 @@ export default function Navbar() {
 
                     {user ? (
                       <div className="mt-3 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-base font-semibold text-neutral-900">
-                            {user.name}
-                          </p>
-                          <p className="text-sm text-neutral-500 capitalize">
-                            {user.role}
-                          </p>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100">
+                            {profileImage ? (
+                              <img
+                                src={profileImage}
+                                alt={user.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-sm font-semibold text-neutral-700">
+                                {profileInitials}
+                              </span>
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-base font-semibold text-neutral-900">
+                              {user.name}
+                            </p>
+                            <p className="text-sm text-neutral-500 capitalize">
+                              {user.role}
+                            </p>
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -251,6 +344,27 @@ export default function Navbar() {
                     {navItems.map((item) => {
                       const Icon = item.icon;
 
+                      if (item.view) {
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => {
+                              if (user) {
+                                setOffcanvasView(item.view as OffcanvasView);
+                              }
+                            }}
+                            className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-left text-neutral-800 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50"
+                          >
+                            <span className="flex items-center gap-3 text-base font-medium">
+                              <Icon className="h-5 w-5 text-neutral-600" />
+                              {item.label}
+                            </span>
+                            <span className="text-lg text-neutral-400">›</span>
+                          </button>
+                        );
+                      }
+
                       return (
                         <Link
                           key={item.label}
@@ -266,6 +380,32 @@ export default function Navbar() {
                         </Link>
                       );
                     })}
+                  </div>
+
+                  <div className="mt-6 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setOffcanvasView("profile")}
+                      className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-left text-neutral-800 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50"
+                    >
+                      <span className="flex items-center gap-3 text-base font-medium">
+                        <UserCircle2 className="h-5 w-5 text-neutral-600" />
+                        Profile
+                      </span>
+                      <span className="text-lg text-neutral-400">›</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setOffcanvasView("settings")}
+                      className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-left text-neutral-800 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50"
+                    >
+                      <span className="flex items-center gap-3 text-base font-medium">
+                        <Settings className="h-5 w-5 text-neutral-600" />
+                        Settings
+                      </span>
+                      <span className="text-lg text-neutral-400">›</span>
+                    </button>
                   </div>
 
                   <div className="mt-6 space-y-2">
@@ -294,6 +434,142 @@ export default function Navbar() {
                     </button>
                   </div>
                 </>
+              ) : offcanvasView === "profile" ? (
+                <div className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={() => setOffcanvasView("menu")}
+                    className="text-sm font-medium text-neutral-600 hover:text-neutral-900"
+                  >
+                    ← Back to menu
+                  </button>
+
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                      Profile
+                    </p>
+                    <h2 className="mt-2 text-2xl font-bold text-neutral-900">
+                      {user ? user.name : "Guest profile"}
+                    </h2>
+
+                    <div className="mt-4 flex items-center gap-4">
+                      <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100">
+                        {profileImage ? (
+                          <img
+                            src={profileImage}
+                            alt={user?.name || "Profile picture"}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-lg font-semibold text-neutral-700">
+                            {profileInitials}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-neutral-700">
+                          {user ? user.role : "Guest user"}
+                        </p>
+                        <p className="mt-1 text-sm text-neutral-500">
+                          {user ? user.email : "Login to save a profile picture"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <label className="mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-3 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100">
+                      <UserCircle2 className="h-4 w-4" />
+                      {profileImage ? "Change profile picture" : "Add profile picture"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleProfileImageUpload}
+                      />
+                    </label>
+                  </div>
+                </div>
+              ) : offcanvasView === "settings" ? (
+                <div className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={() => setOffcanvasView("menu")}
+                    className="text-sm font-medium text-neutral-600 hover:text-neutral-900"
+                  >
+                    ← Back to menu
+                  </button>
+
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                      Settings
+                    </p>
+                    <h2 className="mt-2 text-2xl font-bold text-neutral-900">
+                      Account settings
+                    </h2>
+                  </div>
+
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                        Account & security
+                      </p>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                        Secure
+                      </span>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-neutral-800">
+                        <CreditCard className="h-4 w-4 text-neutral-600" />
+                        Payment method
+                      </div>
+
+                      <div className="mt-2 rounded-xl bg-white p-3 shadow-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                            Transfer
+                          </span>
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
+                            Preferred
+                          </span>
+                        </div>
+
+                        <div className="mt-3 space-y-2 text-sm text-neutral-700">
+                          {paymentDetails.map((detail) => (
+                            <div key={detail.label} className="flex items-center justify-between gap-3">
+                              <span className="text-neutral-500">{detail.label}</span>
+                              <span className="text-right font-medium text-neutral-800">{detail.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-left text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+                      >
+                        <span className="flex items-center gap-2">
+                          <ShieldAlert className="h-4 w-4 text-amber-600" />
+                          Deactivate account
+                        </span>
+                        <span className="text-lg text-neutral-400">›</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-left text-sm font-medium text-red-700 transition hover:bg-red-100"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Trash2 className="h-4 w-4" />
+                          Delete account
+                        </span>
+                        <span className="text-lg text-red-500">›</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ) : offcanvasView === "faqs" ? (
                 <div className="space-y-4">
                   <button

@@ -14,7 +14,6 @@ import StatusBadge from "@/components/ui/statusbadge";
 import {
   Plus,
   MapPin,
-  Globe2,
   MessageCircle,
   PackageCheck,
   Truck,
@@ -475,9 +474,11 @@ function OrderCard({
           </p>
 
           {/* PACKAGE DESCRIPTION */}
-          <p className="mt-0.5 truncate text-sm text-neutral-500">
-            {o.packageDescription}
-          </p>
+          {o.serviceType !== "international" && (
+            <p className="mt-0.5 truncate text-sm text-neutral-500">
+              {o.packageDescription}
+            </p>
+          )}
 
           {/* TRACKING NUMBER */}
           <p className="mt-1 font-mono text-xs font-semibold tracking-wide text-neutral-400">

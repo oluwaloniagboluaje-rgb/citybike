@@ -1620,6 +1620,10 @@ export default function AdminDashboard() {
                       }
                     ).statusHistory || [];
 
+                  const canSetStatus =
+                    o.status !== "delivered" &&
+                    o.status !== "cancelled";
+
                   const internationalHistory =
                     (
                       o as OrderClient & {
@@ -1644,12 +1648,14 @@ export default function AdminDashboard() {
                             {customerHeading}
                           </Link>
 
-                          <Link
-                            href={`/orders/${o._id}`}
-                            className="mt-0.5 block font-medium text-neutral-800 hover:underline"
-                          >
-                            {o.packageDescription}
-                          </Link>
+                          {o.serviceType !== "international" && (
+                            <Link
+                              href={`/orders/${o._id}`}
+                              className="mt-0.5 block font-medium text-neutral-800 hover:underline"
+                            >
+                              {o.packageDescription}
+                            </Link>
+                          )}
 
                           <p className="mt-1 font-mono text-xs font-semibold tracking-wide text-neutral-500">
                             #{o.trackingNumber}
@@ -2447,64 +2453,66 @@ export default function AdminDashboard() {
                           </button>
                         )}
 
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={
-                              selectedStatus[
-                                o._id
-                              ] ?? ""
-                            }
-                            onChange={(e) =>
-                              setSelectedStatus(
-                                (prev) => ({
-                                  ...prev,
-                                  [o._id]:
-                                    e.target
-                                      .value,
-                                })
-                              )
-                            }
-                            className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
-                          >
-                            <option value="">
-                              Set status...
-                            </option>
-
-                            {getStatusOptionsForOrder(
-                              o
-                            ).map((status) => (
-                              <option
-                                key={status}
-                                value={status}
-                              >
-                                {
-                                  STATUS_LABELS[
-                                    status
-                                  ]
-                                }
+                        {canSetStatus && (
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={
+                                selectedStatus[
+                                  o._id
+                                ] ?? ""
+                              }
+                              onChange={(e) =>
+                                setSelectedStatus(
+                                  (prev) => ({
+                                    ...prev,
+                                    [o._id]:
+                                      e.target
+                                        .value,
+                                  })
+                                )
+                              }
+                              className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
+                            >
+                              <option value="">
+                                Set status...
                               </option>
-                            ))}
-                          </select>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void setCustomStatus(
-                                o._id
-                              )
-                            }
-                            disabled={
-                              !selectedStatus[
-                                o._id
-                              ] ||
-                              updatingStatus ===
-                                o._id
-                            }
-                            className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
-                          >
-                            Update
-                          </button>
-                        </div>
+                              {getStatusOptionsForOrder(
+                                o
+                              ).map((status) => (
+                                <option
+                                  key={status}
+                                  value={status}
+                                >
+                                  {
+                                    STATUS_LABELS[
+                                      status
+                                    ]
+                                  }
+                                </option>
+                              ))}
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void setCustomStatus(
+                                  o._id
+                                )
+                              }
+                              disabled={
+                                !selectedStatus[
+                                  o._id
+                                ] ||
+                                updatingStatus ===
+                                  o._id
+                              }
+                              className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                            >
+                              Update
+                            </button>
+                          </div>
+                        )}
 
                         <a
                           href={recipientWhatsAppLink(
