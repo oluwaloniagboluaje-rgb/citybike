@@ -161,6 +161,7 @@ export interface OrderClient {
   statusHistory: {
     status: OrderStatus;
     at: string;
+    description?: string;
   }[];
 
   dhlStatusHistory?: {
@@ -229,6 +230,7 @@ export interface PublicTrackingResult {
   statusHistory: {
     status: OrderStatus;
     at: string;
+    description?: string;
   }[];
 
   /**

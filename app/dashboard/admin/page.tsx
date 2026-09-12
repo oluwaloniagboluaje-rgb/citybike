@@ -370,7 +370,24 @@ export default function AdminDashboard() {
     useState("");
 
   const [recentSearches, setRecentSearches] =
-    useState<string[]>([]);
+    useState<string[]>(() => {
+      if (typeof window === "undefined") {
+        return [];
+      }
+
+      try {
+        const savedSearches =
+          window.localStorage.getItem(
+            "admin-recent-searches"
+          );
+
+        return savedSearches
+          ? JSON.parse(savedSearches)
+          : [];
+      } catch {
+        return [];
+      }
+    });
 
   const [uploadingPhotoFor, setUploadingPhotoFor] =
     useState<string | null>(null);
@@ -440,19 +457,6 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  const fetchDrivers = useCallback(async () => {
-    try {
-      const res = await fetch("/api/drivers");
-
-      if (res.ok) {
-        const data = await res.json();
-        setDrivers(data.drivers || []);
-      }
-    } catch {
-      // Keep current state if fetching fails.
-    }
-  }, []);
-
   useEffect(() => {
     if (!user) return;
 
@@ -480,25 +484,6 @@ export default function AdminDashboard() {
       }
     })();
   }, [user]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    try {
-      const savedSearches =
-        window.localStorage.getItem(
-          "admin-recent-searches"
-        );
-
-      if (savedSearches) {
-        setRecentSearches(
-          JSON.parse(savedSearches)
-        );
-      }
-    } catch {
-      // Ignore malformed local storage data.
-    }
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1130,8 +1115,6 @@ export default function AdminDashboard() {
     }
   }
 
-  if (loading || !user) return null;
-
   const getFilteredOrdersForSearch =
     useCallback(
       (searchTerm: string) => {
@@ -1257,6 +1240,8 @@ export default function AdminDashboard() {
     }
   }, [customerSearch, getFilteredOrdersForSearch]);
 
+  if (loading || !user) return null;
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <input
@@ -1340,7 +1325,7 @@ export default function AdminDashboard() {
 
         {customerSearch.trim() && (
           <p className="mt-2 text-xs text-neutral-500">
-            Showing results for '{customerSearch}'
+            Showing results for &apos;{customerSearch}&apos;
           </p>
         )}
 
@@ -1577,7 +1562,7 @@ export default function AdminDashboard() {
 
                   {customerSearch.trim() && (
                     <p className="mt-2 text-xs text-neutral-500">
-                      Showing results for '{customerSearch}'
+                      Showing results for &apos;{customerSearch}&apos;
                     </p>
                   )}
                 </div>

@@ -9,6 +9,7 @@ import {
   sendMail,
   getOrderStatusUpdateEmail,
 } from "@/libs/mailer";
+import { sendSms } from "@/libs/notify";
 import { serverBroadcast } from "@/libs/broadcast";
 import { orderStatusChannel } from "@/libs/supabaseClient";
 
@@ -394,6 +395,41 @@ export async function POST(
           "Status update email failed:",
           mailError
         );
+      }
+    }
+
+    if (order.serviceType === "local") {
+      const customerPhone =
+        customer &&
+        "phone" in customer &&
+        typeof customer.phone === "string"
+          ? customer.phone
+          : null;
+
+      if (customerPhone) {
+        const statusLabel = status
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (char) =>
+            char.toUpperCase()
+          );
+
+        const smsText =
+          `Hello ${customerName || "Customer"}, your local order has been updated.\n\n` +
+          `Tracking Number: ${populated.trackingNumber}\n` +
+          `Current status: ${statusLabel}\n` +
+          (cleanDescription
+            ? `Details: ${cleanDescription}\n`
+            : "") +
+          `Track here: ${process.env.NEXT_PUBLIC_APP_URL || `${req.nextUrl.protocol}//${req.nextUrl.host}`}/track?tracking=${encodeURIComponent(populated.trackingNumber)}`;
+
+        try {
+          await sendSms(customerPhone, smsText);
+        } catch (smsError) {
+          console.error(
+            "Local order status SMS notification failed:",
+            smsError
+          );
+        }
       }
     }
 

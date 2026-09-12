@@ -8,6 +8,7 @@ import { generateTrackingNumber } from "@/libs/tracking";
 import { haversineDistanceKm, calculatePrice } from "@/libs/pricing";
 import { estimateTransitDurationMs } from "@/libs/eta";
 import { sendMail, getOrderCreatedEmail, getAdminNewOrderEmail } from "@/libs/mailer";
+import { sendSms } from "@/libs/notify";
 import { z } from "zod";
 
 // Referencing User here (even trivially) prevents production bundlers
@@ -90,6 +91,69 @@ async function createUniqueTrackingNumber(originCity: string): Promise<string> {
     if (!existing) return candidate;
   }
   throw new Error("Could not generate a unique tracking number");
+}
+
+function normalizePhoneNumber(
+  phone?: string | null,
+  countryCode?: string | null
+): string | null {
+  if (!phone) {
+    return null;
+  }
+
+  let cleanPhone = phone.trim();
+
+  if (!cleanPhone) {
+    return null;
+  }
+
+  let cleanCode = countryCode?.trim() || "";
+
+  cleanPhone = cleanPhone.replace(/[^\d+]/g, "");
+  cleanCode = cleanCode.replace(/[^\d+]/g, "");
+
+  if (cleanPhone.startsWith("+")) {
+    return cleanPhone;
+  }
+
+  if (cleanCode) {
+    if (!cleanCode.startsWith("+")) {
+      cleanCode = `+${cleanCode}`;
+    }
+
+    cleanCode = `+${cleanCode.replace(/\+/g, "")}`;
+
+    const numericCode = cleanCode.slice(1);
+
+    if (cleanPhone.startsWith(numericCode)) {
+      return `+${cleanPhone}`;
+    }
+
+    if (cleanPhone.startsWith("0")) {
+      cleanPhone = cleanPhone.substring(1);
+    }
+
+    return `${cleanCode}${cleanPhone}`;
+  }
+
+  if (cleanPhone.startsWith("00")) {
+    return `+${cleanPhone.substring(2)}`;
+  }
+
+  return cleanPhone;
+}
+
+function getTrackingUrl(
+  req: NextRequest,
+  trackingNumber: string
+): string {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    `${req.nextUrl.protocol}//${req.nextUrl.host}`;
+
+  return `${baseUrl}/track?tracking=${encodeURIComponent(
+    trackingNumber
+  )}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -192,6 +256,30 @@ export async function POST(req: NextRequest) {
         });
       } catch (mailError) {
         console.error("Order confirmation email failed:", mailError);
+      }
+    }
+
+    if (finalServiceType === "local") {
+      const customerPhone =
+        normalizePhoneNumber(populated?.customer?.phone) ||
+        normalizePhoneNumber(parsed.data.recipientPhone, parsed.data.recipientPhoneCode);
+
+      if (customerPhone) {
+        const trackingUrl = getTrackingUrl(
+          req,
+          populated?.trackingNumber || trackingNumber
+        );
+
+        const smsBody =
+          `Hello ${populated?.customer?.name || "Customer"}, your local order has been created successfully.\n\n` +
+          `Tracking Number: ${populated?.trackingNumber || trackingNumber}\n\n` +
+          `Track your shipment here:\n${trackingUrl}`;
+
+        try {
+          await sendSms(customerPhone, smsBody);
+        } catch (smsError) {
+          console.error("Local order SMS notification failed:", smsError);
+        }
       }
     }
 
