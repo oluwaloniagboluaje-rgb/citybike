@@ -10,6 +10,8 @@ export interface IUser extends Document {
   role: UserRole;
   vehicleType?: string;
   isAvailable?: boolean;
+  isActive?: boolean;
+  deactivatedAt?: Date;
   resetPasswordTokenHash?: string;
   resetPasswordExpires?: Date;
   createdAt: Date;
@@ -44,6 +46,11 @@ const UserSchema = new Schema<IUser>(
       type: Boolean,
       default: true,
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    deactivatedAt: Date,
     resetPasswordTokenHash: String,
     resetPasswordExpires: Date,
   },

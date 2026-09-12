@@ -28,6 +28,9 @@ export default function Navbar() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [offcanvasView, setOffcanvasView] = useState<OffcanvasView>("menu");
   const [profileImage, setProfileImage] = useState<string>("");
+  const [accountActionState, setAccountActionState] = useState<"deactivate" | "delete" | null>(null);
+  const [accountActionPrompt, setAccountActionPrompt] = useState<"deactivate" | "delete" | null>(null);
+  const [accountActionError, setAccountActionError] = useState<string>("");
 
   const dashboardHref = user
     ? user.role === "admin"
@@ -143,6 +146,52 @@ export default function Navbar() {
         "We accept clothing, food items, personal effects, phones, laptops, and many other items. Some items may be restricted, so please confirm with us before shipping.",
     },
   ];
+
+  function handleAccountAction(action: "deactivate" | "delete") {
+    if (!user) {
+      return;
+    }
+
+    setAccountActionPrompt(action);
+    setAccountActionError("");
+  }
+
+  async function confirmAccountAction() {
+    if (!accountActionPrompt || !user) {
+      return;
+    }
+
+    setAccountActionState(accountActionPrompt);
+    setAccountActionError("");
+
+    try {
+      const res = await fetch("/api/auth/account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: accountActionPrompt }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update account.");
+      }
+
+      setAccountActionPrompt(null);
+      closeMenu();
+      await logout();
+    } catch (error) {
+      setAccountActionError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while updating your account."
+      );
+    } finally {
+      setAccountActionState(null);
+    }
+  }
 
   function confirmLogout() {
     setShowLogoutModal(false);
@@ -548,26 +597,36 @@ export default function Navbar() {
                     <div className="mt-3 space-y-2">
                       <button
                         type="button"
-                        className="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-left text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+                        onClick={() => handleAccountAction("deactivate")}
+                        disabled={accountActionState !== null}
+                        className="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-left text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <span className="flex items-center gap-2">
                           <ShieldAlert className="h-4 w-4 text-amber-600" />
-                          Deactivate account
+                          {accountActionState === "deactivate" ? "Deactivating..." : "Deactivate account"}
                         </span>
                         <span className="text-lg text-neutral-400">›</span>
                       </button>
 
                       <button
                         type="button"
-                        className="flex w-full items-center justify-between rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-left text-sm font-medium text-red-700 transition hover:bg-red-100"
+                        onClick={() => handleAccountAction("delete")}
+                        disabled={accountActionState !== null}
+                        className="flex w-full items-center justify-between rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-left text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <span className="flex items-center gap-2">
                           <Trash2 className="h-4 w-4" />
-                          Delete account
+                          {accountActionState === "delete" ? "Deleting..." : "Delete account"}
                         </span>
                         <span className="text-lg text-red-500">›</span>
                       </button>
                     </div>
+
+                    {accountActionError ? (
+                      <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                        {accountActionError}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               ) : offcanvasView === "faqs" ? (
@@ -681,6 +740,51 @@ export default function Navbar() {
                 className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
               >
                 Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {accountActionPrompt && (
+        <div
+          className="fixed inset-0 z-70 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setAccountActionPrompt(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-white p-5 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-semibold text-neutral-900">
+              {accountActionPrompt === "deactivate" ? "Deactivate account?" : "Delete account?"}
+            </h2>
+            <p className="mt-2 text-sm text-neutral-600">
+              {accountActionPrompt === "deactivate"
+                ? "This will deactivate your account and sign you out. You will not be able to log in again until an admin restores it."
+                : "This will permanently delete your account from the database. This action cannot be undone."}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setAccountActionPrompt(null)}
+                className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAccountAction}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium text-white ${
+                  accountActionPrompt === "deactivate"
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {accountActionState === accountActionPrompt
+                  ? accountActionPrompt === "deactivate"
+                    ? "Deactivating..."
+                    : "Deleting..."
+                  : accountActionPrompt === "deactivate"
+                    ? "Deactivate"
+                    : "Delete"}
               </button>
             </div>
           </div>
