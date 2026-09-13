@@ -40,10 +40,10 @@ export default function Footer() {
               <li className="flex items-start gap-2">
                 <Mail className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
                 <a
-                  href="mailto:Citybikelogistics1@gmail.com"
+                  href="mailto:info@citybikelogistics.com"
                   className="hover:text-white"
                 >
-                  Citybikelogistics1@gmail.com
+                  info@citybikelogistics.com
                 </a>
               </li>
               <li className="flex items-start gap-2">
@@ -52,8 +52,8 @@ export default function Footer() {
                   <a href="tel:+2349152661473" className="hover:text-white">
                     0915 266 1473
                   </a>
-                  <a href="tel:+447552223724" className="hover:text-white">
-                    +44 7552 223724
+                  <a href="tel:+447570998051" className="hover:text-white">
+                    +44 7570 998051
                   </a>
                   <a href="tel:+2349113985157" className="hover:text-white">
                     0911 398 5157

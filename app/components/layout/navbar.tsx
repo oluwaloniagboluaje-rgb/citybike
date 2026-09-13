@@ -434,32 +434,6 @@ export default function Navbar() {
                   <div className="mt-6 space-y-2">
                     <button
                       type="button"
-                      onClick={() => setOffcanvasView("profile")}
-                      className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-left text-neutral-800 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50"
-                    >
-                      <span className="flex items-center gap-3 text-base font-medium">
-                        <UserCircle2 className="h-5 w-5 text-neutral-600" />
-                        Profile
-                      </span>
-                      <span className="text-lg text-neutral-400">›</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setOffcanvasView("settings")}
-                      className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-left text-neutral-800 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50"
-                    >
-                      <span className="flex items-center gap-3 text-base font-medium">
-                        <Settings className="h-5 w-5 text-neutral-600" />
-                        Settings
-                      </span>
-                      <span className="text-lg text-neutral-400">›</span>
-                    </button>
-                  </div>
-
-                  <div className="mt-6 space-y-2">
-                    <button
-                      type="button"
                       onClick={() => setOffcanvasView("faqs")}
                       className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-left text-neutral-800 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50"
                     >

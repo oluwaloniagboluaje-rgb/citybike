@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/libs/mongodb";
 import User from "@/models/User";
-import { hashPassword, signToken, AUTH_COOKIE_NAME } from "@/libs/auth";
+import {
+  hashPassword,
+  signToken,
+  AUTH_COOKIE_NAME,
+  resolveUserRole,
+} from "@/libs/auth";
 import { sendMail, getWelcomeEmail } from "@/libs/mailer";
 import { z } from "zod";
 
@@ -28,6 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { name, email, password, phone, role, vehicleType } = parsed.data;
+    const effectiveRole = resolveUserRole(email, role);
 
     const existing = await User.findOne({ email });
     if (existing) {
@@ -43,9 +49,9 @@ export async function POST(req: NextRequest) {
       email,
       password: hashed,
       phone,
-      role,
-      vehicleType: role === "driver" ? vehicleType : undefined,
-      isAvailable: role === "driver" ? true : undefined,
+      role: effectiveRole,
+      vehicleType: effectiveRole === "driver" ? vehicleType : undefined,
+      isAvailable: effectiveRole === "driver" ? true : undefined,
     });
 
     try {

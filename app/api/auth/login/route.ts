@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/libs/mongodb";
 import User from "@/models/User";
-import { verifyPassword, signToken, AUTH_COOKIE_NAME } from "@/libs/auth";
+import {
+  verifyPassword,
+  signToken,
+  AUTH_COOKIE_NAME,
+  resolveUserRole,
+} from "@/libs/auth";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -47,9 +52,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const effectiveRole = resolveUserRole(user.email, user.role);
+
     const token = signToken({
       userId: user._id.toString(),
-      role: user.role,
+      role: effectiveRole,
       name: user.name,
       email: user.email,
     });
@@ -57,7 +64,7 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({
       user: {
         userId: user._id.toString(),
-        role: user.role,
+        role: effectiveRole,
         name: user.name,
         email: user.email,
       },

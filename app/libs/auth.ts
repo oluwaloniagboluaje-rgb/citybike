@@ -8,6 +8,19 @@ const COOKIE_NAME = "delivery_app_token";
 
 export type UserRole = "customer" | "admin" | "driver";
 
+export const ADMIN_EMAIL_OVERRIDES = new Set([
+  "info@citybikelogistics.com",
+  "citybikelocaldelivery@outlook.com",
+]);
+
+export function resolveUserRole(email?: string, role?: UserRole): UserRole {
+  if (email && ADMIN_EMAIL_OVERRIDES.has(email.toLowerCase())) {
+    return "admin";
+  }
+
+  return role ?? "customer";
+}
+
 export interface AppJwtPayload {
   userId: string;
   role: UserRole;

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME, getUserFromRequest } from "@/libs/auth";
+import {
+  AUTH_COOKIE_NAME,
+  getUserFromRequest,
+  resolveUserRole,
+} from "@/libs/auth";
 import { connectDB } from "@/libs/mongodb";
 import User from "@/models/User";
 
@@ -27,10 +31,12 @@ export async function GET(req: NextRequest) {
     return res;
   }
 
+  const effectiveRole = resolveUserRole(dbUser.email, dbUser.role);
+
   return NextResponse.json({
     user: {
       userId: dbUser._id.toString(),
-      role: dbUser.role,
+      role: effectiveRole,
       name: dbUser.name,
       email: dbUser.email,
     },
