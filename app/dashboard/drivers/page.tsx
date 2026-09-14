@@ -127,12 +127,29 @@ export default function DriverDashboard() {
           const nextAction = NEXT_STATUS[o.status];
           const isSharing = sharingLocationFor === o._id;
           const canShareLocation = ["assigned", "picked_up", "in_transit"].includes(o.status);
-          const senderLabel =
-            o.senderName || o.senderPhone
-              ? `${o.senderName || "Sender"}${o.senderPhone ? ` (${o.senderPhone})` : ""}`
-              : o.customer
-              ? `${o.customer.name} (${o.customer.phone})`
-              : "Unknown";
+          const senderLabel = (() => {
+            const senderName = o.senderName?.trim();
+            const senderPhone = o.senderPhone?.trim();
+            const senderIsCityBike =
+              (senderName && senderName.toLowerCase().includes("citybike")) ||
+              (senderPhone && senderPhone.replace(/\D/g, "").replace(/^234/, "") === "9152661473");
+
+            if (senderName || senderPhone) {
+              if (!senderIsCityBike) {
+                return `${senderName || "Sender"}${senderPhone ? ` (${senderPhone})` : ""}`;
+              }
+            }
+
+            if (o.isAdminCreated && (o.recipientName || o.recipientPhone)) {
+              return `${o.recipientName || "Sender"}${o.recipientPhone ? ` (${o.recipientPhone})` : ""}`;
+            }
+
+            if (o.customer) {
+              return `${o.customer.name} (${o.customer.phone})`;
+            }
+
+            return "Unknown";
+          })();
 
           return (
             <div key={o._id} className="rounded-lg border border-neutral-200 bg-white p-4">

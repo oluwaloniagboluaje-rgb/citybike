@@ -474,15 +474,12 @@ export async function POST(req: NextRequest) {
     const order = await Order.create({
       ...parsed.data,
 
+      // Always persist the admin-entered sender details explicitly.
+      senderName: parsed.data.senderName?.trim() || undefined,
+      senderPhone: normalizedSenderPhone || undefined,
+
       // Store the clean E.164 recipient number.
       recipientPhone: normalizedRecipientPhone,
-
-      // Store normalized sender number when supplied.
-      ...(normalizedSenderPhone
-        ? {
-            senderPhone: normalizedSenderPhone,
-          }
-        : {}),
 
       trackingNumber,
 
