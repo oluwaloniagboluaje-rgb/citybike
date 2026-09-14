@@ -2250,7 +2250,7 @@ export default function AdminDashboard() {
                           {o.status ===
                             "delivered" && (
                             <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
-                              DELIVERED
+                              COMPLETED
                             </span>
                           )}
 
@@ -2378,6 +2378,12 @@ export default function AdminDashboard() {
                           Customer is notified by
                           email at every status
                           update below.
+                        </div>
+                      )}
+
+                      {o.status === "delivered" && (
+                        <div className="mt-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs font-medium text-green-700">
+                          Order delivered. Status history is shown below.
                         </div>
                       )}
 
