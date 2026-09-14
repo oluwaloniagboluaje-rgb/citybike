@@ -197,6 +197,25 @@ type OrderStatusFilter =
   | "delivered"
   | "all";
 
+function formatSenderInfo(order: OrderClient): string {
+  const senderName = order.senderName?.trim();
+  const senderPhone = order.senderPhone?.trim();
+
+  if (senderName || senderPhone) {
+    const base = senderName || "Sender";
+    const phone = senderPhone ? ` (${senderPhone})` : "";
+    const walkInTag = order.isAdminCreated ? " — walk-in" : "";
+
+    return `${base}${phone}${walkInTag}`;
+  }
+
+  if (order.customer) {
+    return `${order.customer.name} (${order.customer.phone})`;
+  }
+
+  return "Unknown";
+}
+
 function getOrderCategory(
   serviceType: ServiceType
 ): Exclude<OrderCategory, "all"> {
@@ -1609,8 +1628,8 @@ export default function AdminDashboard() {
                     o._id;
 
                   const customerHeading =
-                    o.customer?.name ||
                     o.senderName ||
+                    o.customer?.name ||
                     "Walk-in Customer";
 
                   const orderStatusHistory =
@@ -1620,9 +1639,18 @@ export default function AdminDashboard() {
                       }
                     ).statusHistory || [];
 
+                  const shouldShowGenericStatusHistory =
+                    !["international", "dhl_express"].includes(
+                      o.serviceType
+                    );
+
                   const canSetStatus =
-                    o.status !== "delivered" &&
-                    o.status !== "cancelled";
+                    ![
+                      "delivered",
+                      "delivered_by_courier",
+                      "delivery_confirmed",
+                      "cancelled",
+                    ].includes(o.status);
 
                   const internationalHistory =
                     (
@@ -1704,12 +1732,7 @@ export default function AdminDashboard() {
                           )}
 
                           <p className="mt-1 text-sm text-neutral-500">
-                            Sender:{" "}
-                            {o.customer
-                              ? `${o.customer.name} (${o.customer.phone})`
-                              : o.senderName
-                              ? `${o.senderName} (${o.senderPhone}) — walk-in`
-                              : "Unknown"}
+                            Sender: {formatSenderInfo(o)}
                           </p>
 
                           <p className="mt-1 text-sm text-neutral-500">
@@ -1725,48 +1748,49 @@ export default function AdminDashboard() {
                             </p>
                           )}
 
-                          {orderStatusHistory.length > 0 && (
-                            <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
-                                  Order history
-                                </p>
+                          {shouldShowGenericStatusHistory &&
+                            orderStatusHistory.length > 0 && (
+                              <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+                                    Order history
+                                  </p>
 
-                                <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] font-medium text-white">
-                                  {orderStatusHistory.length} updates
-                                </span>
-                              </div>
+                                  <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] font-medium text-white">
+                                    {orderStatusHistory.length} updates
+                                  </span>
+                                </div>
 
-                              <div className="mt-2 space-y-2">
-                                {orderStatusHistory.map((h, idx) => (
-                                  <div
-                                    key={`${h.status}-${String(h.at)}-${idx}`}
-                                    className="flex items-start gap-2 text-xs text-neutral-700"
-                                  >
-                                    <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-neutral-600" />
+                                <div className="mt-2 space-y-2">
+                                  {orderStatusHistory.map((h, idx) => (
+                                    <div
+                                      key={`${h.status}-${String(h.at)}-${idx}`}
+                                      className="flex items-start gap-2 text-xs text-neutral-700"
+                                    >
+                                      <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-neutral-600" />
 
-                                    <div className="min-w-0">
-                                      <div>
-                                        <span className="font-semibold">
-                                          {STATUS_LABELS[h.status as OrderStatus] || h.status}
-                                        </span>
-                                        <span className="text-neutral-500"> • </span>
-                                        <span className="text-neutral-500">
-                                          {new Date(h.at).toLocaleString()}
-                                        </span>
+                                      <div className="min-w-0">
+                                        <div>
+                                          <span className="font-semibold">
+                                            {STATUS_LABELS[h.status as OrderStatus] || h.status}
+                                          </span>
+                                          <span className="text-neutral-500"> • </span>
+                                          <span className="text-neutral-500">
+                                            {new Date(h.at).toLocaleString()}
+                                          </span>
+                                        </div>
+
+                                        {h.description && (
+                                          <p className="mt-0.5 text-[11px] leading-4 text-neutral-600">
+                                            {h.description}
+                                          </p>
+                                        )}
                                       </div>
-
-                                      {h.description && (
-                                        <p className="mt-0.5 text-[11px] leading-4 text-neutral-600">
-                                          {h.description}
-                                        </p>
-                                      )}
                                     </div>
-                                  </div>
-                                ))}
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
 
                           {(o.serviceType ===
                             "dhl_express" ||

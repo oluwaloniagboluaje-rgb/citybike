@@ -29,6 +29,25 @@ const INTERSTATE_NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; l
   out_for_delivery: { next: "delivered", label: "Mark Delivered" },
 };
 
+function formatSenderInfo(order: OrderClient): string {
+  const senderName = order.senderName?.trim();
+  const senderPhone = order.senderPhone?.trim();
+
+  if (senderName || senderPhone) {
+    const base = senderName || "Sender";
+    const phone = senderPhone ? ` (${senderPhone})` : "";
+    const walkInTag = order.isAdminCreated ? " — walk-in" : "";
+
+    return `${base}${phone}${walkInTag}`;
+  }
+
+  if (order.customer) {
+    return `${order.customer.name} (${order.customer.phone})`;
+  }
+
+  return "Unknown";
+}
+
 export default function DriverDashboard() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -247,11 +266,7 @@ export default function DriverDashboard() {
                 const isSharing = sharingLocationFor === o._id;
                 const canShareLocation = ["assigned", "picked_up", "in_transit"].includes(o.status);
                 const isUploadingThis = uploadingPhotoFor === o._id;
-                const senderLabel = o.customer
-                  ? `${o.customer.name} (${o.customer.phone})`
-                  : o.senderName
-                  ? `${o.senderName} (${o.senderPhone})`
-                  : null;
+                const senderLabel = formatSenderInfo(o);
 
           return (
             <div key={o._id} className="rounded-lg border border-neutral-200 bg-white p-4">

@@ -410,6 +410,12 @@ export async function POST(req: NextRequest) {
         ? "international"
         : parsed.data.serviceType;
 
+    const initialStatus =
+      finalServiceType === "international" ||
+      finalServiceType === "dhl_express"
+        ? "shipment_created"
+        : "pending";
+
     /*
      * ------------------------------------------------------------
      * Tracking number
@@ -488,11 +494,11 @@ export async function POST(req: NextRequest) {
 
       isAdminCreated: true,
 
-      status: "shipment_created",
+      status: initialStatus,
 
       statusHistory: [
         {
-          status: "shipment_created",
+          status: initialStatus,
           at: new Date(),
         },
       ],

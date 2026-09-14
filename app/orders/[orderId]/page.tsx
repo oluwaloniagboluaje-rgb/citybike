@@ -1099,13 +1099,13 @@ export default function OrderDetailPage() {
 
           Sender:{" "}
 
-          {order.customer
-            ? order.customer.name
-            : order.senderName
-              ? `${order.senderName}${
-                  order.isAdminCreated
-                    ? " (walk-in)"
-                    : ""
+          {order.senderName || order.senderPhone
+            ? `${order.senderName || "Sender"}${
+                order.senderPhone ? ` (${order.senderPhone})` : ""
+              }${order.isAdminCreated ? " (walk-in)" : ""}`
+            : order.customer
+              ? `${order.customer.name}${
+                  order.customer.phone ? ` (${order.customer.phone})` : ""
                 }`
               : "Unknown"}
         </span>

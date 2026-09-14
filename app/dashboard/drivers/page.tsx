@@ -127,6 +127,12 @@ export default function DriverDashboard() {
           const nextAction = NEXT_STATUS[o.status];
           const isSharing = sharingLocationFor === o._id;
           const canShareLocation = ["assigned", "picked_up", "in_transit"].includes(o.status);
+          const senderLabel =
+            o.senderName || o.senderPhone
+              ? `${o.senderName || "Sender"}${o.senderPhone ? ` (${o.senderPhone})` : ""}`
+              : o.customer
+              ? `${o.customer.name} (${o.customer.phone})`
+              : "Unknown";
 
           return (
             <div key={o._id} className="rounded-lg border border-neutral-200 bg-white p-4">
@@ -142,6 +148,9 @@ export default function DriverDashboard() {
                     <MapPin className="h-3.5 w-3.5" />
                     {o.pickup.city} → {o.dropoff.city}
                     {o.isInternational ? `, ${o.dropoff.country}` : ""}
+                  </p>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    Sender: {senderLabel}
                   </p>
                   <p className="mt-1 text-sm text-neutral-500">
                     Recipient: {o.recipientName} ({o.recipientPhone})

@@ -1,20 +1,14 @@
-﻿import Twilio from "twilio";
+﻿import twilio from "twilio";
 
-const SID = process.env.TWILIO_ACCOUNT_SID;
-const TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
+const TWILIO_WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER;
 
-const FROM = process.env.TWILIO_PHONE_NUMBER;
-const WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_NUMBER;
-
-let client: any = null;
-
-if (SID && TOKEN) {
-  try {
-    client = Twilio(SID, TOKEN);
-  } catch (err) {
-    console.error("Failed to initialize Twilio client:", err);
-  }
-}
+const twilioClient =
+  TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
+    ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    : null;
 
 function normalizePhoneNumber(to: string): string | null {
   let phone = to.trim();
@@ -45,11 +39,6 @@ export async function sendSms(
   to: string,
   body: string
 ): Promise<void> {
-  if (!client || !FROM) {
-    console.warn("Twilio SMS not configured; skipping SMS send.");
-    return;
-  }
-
   const normalizedTo = normalizePhoneNumber(to);
 
   if (!normalizedTo) {
@@ -57,11 +46,16 @@ export async function sendSms(
     return;
   }
 
+  if (!twilioClient || !TWILIO_PHONE_NUMBER) {
+    console.warn("Twilio SMS not configured; skipping message send.");
+    return;
+  }
+
   try {
-    await client.messages.create({
-      to: normalizedTo,
-      from: FROM,
+    await twilioClient.messages.create({
       body,
+      from: TWILIO_PHONE_NUMBER,
+      to: normalizedTo,
     });
 
     console.log(`SMS successfully sent to ${normalizedTo}`);
@@ -74,11 +68,6 @@ export async function sendWhatsApp(
   to: string,
   body: string
 ): Promise<void> {
-  if (!client || !WHATSAPP_FROM) {
-    console.warn("Twilio WhatsApp not configured; skipping WhatsApp send.");
-    return;
-  }
-
   const normalizedTo = normalizePhoneNumber(to);
 
   if (!normalizedTo) {
@@ -86,21 +75,28 @@ export async function sendWhatsApp(
     return;
   }
 
-  const whatsappTo = `whatsapp:${normalizedTo}`;
-  const whatsappFrom = WHATSAPP_FROM.startsWith("whatsapp:")
-    ? WHATSAPP_FROM
-    : `whatsapp:${WHATSAPP_FROM}`;
+  if (!twilioClient || !(TWILIO_WHATSAPP_NUMBER || TWILIO_PHONE_NUMBER)) {
+    console.warn("Twilio WhatsApp not configured; skipping message send.");
+    return;
+  }
 
   try {
-    await client.messages.create({
-      to: whatsappTo,
-      from: whatsappFrom,
+    const whatsappFrom = TWILIO_WHATSAPP_NUMBER || TWILIO_PHONE_NUMBER || "";
+
+    if (!whatsappFrom) {
+      console.warn("Twilio WhatsApp sender not configured; skipping message send.");
+      return;
+    }
+
+    await twilioClient.messages.create({
       body,
+      from: `whatsapp:${whatsappFrom.replace(/^whatsapp:/i, "")}`,
+      to: `whatsapp:${normalizedTo.replace(/^whatsapp:/i, "")}`,
     });
 
-    console.log(`WhatsApp successfully sent to ${whatsappTo}`);
+    console.log(`WhatsApp successfully sent to ${normalizedTo}`);
   } catch (err) {
-    console.error(`sendWhatsApp failed for ${whatsappTo}`, err);
+    console.error(`sendWhatsApp failed for ${normalizedTo}`, err);
   }
 }
 
