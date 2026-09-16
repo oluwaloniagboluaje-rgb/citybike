@@ -1103,21 +1103,6 @@ export default function OrderDetailPage() {
             ? (() => {
                 const senderName = order.senderName?.trim();
                 const senderPhone = order.senderPhone?.trim();
-                const senderIsCityBike =
-                  (senderName && senderName.toLowerCase().includes("citybike")) ||
-                  (senderPhone && senderPhone.replace(/\D/g, "").replace(/^234/, "") === "9152661473");
-
-                if (senderIsCityBike) {
-                  return order.isAdminCreated && (order.recipientName || order.recipientPhone)
-                    ? `${order.recipientName || "Sender"}${
-                        order.recipientPhone ? ` (${order.recipientPhone})` : ""
-                      }`
-                    : order.customer
-                      ? `${order.customer.name}${
-                          order.customer.phone ? ` (${order.customer.phone})` : ""
-                        }`
-                      : "Unknown";
-                }
 
                 return `${senderName || "Sender"}${
                   senderPhone ? ` (${senderPhone})` : ""

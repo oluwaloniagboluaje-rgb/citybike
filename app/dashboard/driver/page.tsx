@@ -29,30 +29,11 @@ const INTERSTATE_NEXT_STATUS: Partial<Record<OrderStatus, { next: OrderStatus; l
   out_for_delivery: { next: "delivered", label: "Mark Delivered" },
 };
 
-function isCityBikeAdminSender(
-  senderName?: string,
-  senderPhone?: string
-): boolean {
-  const normalizedName = senderName?.trim().toLowerCase() || "";
-  const normalizedPhone = senderPhone
-    ?.replace(/\D/g, "")
-    .replace(/^234/, "") || "";
-
-  return (
-    normalizedName.includes("citybike") ||
-    normalizedPhone === "9152661473" ||
-    normalizedPhone === "09152661473"
-  );
-}
-
 function formatSenderInfo(order: OrderClient): string {
   const senderName = order.senderName?.trim();
   const senderPhone = order.senderPhone?.trim();
-  const hasSenderDetails =
-    Boolean(senderName || senderPhone) &&
-    !isCityBikeAdminSender(senderName, senderPhone);
 
-  if (hasSenderDetails) {
+  if (senderName || senderPhone) {
     const base = senderName || "Sender";
     const phone = senderPhone ? ` (${senderPhone})` : "";
     const walkInTag = order.isAdminCreated ? " — walk-in" : "";

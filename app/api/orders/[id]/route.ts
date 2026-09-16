@@ -6,6 +6,53 @@ import Order from "@/models/order";
 import "@/models/User";
 import { getUserFromRequest } from "@/libs/auth";
 
+function normalizeSenderFieldsForResponse<T extends {
+  isAdminCreated?: boolean;
+  senderName?: string | null;
+  senderPhone?: string | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  customer?: { name?: string | null } | null;
+}>(order: T): T {
+  if (!order?.isAdminCreated) {
+    return order;
+  }
+
+  const senderName = order.senderName?.trim() || "";
+  const senderPhone = order.senderPhone?.trim() || "";
+  const recipientName = order.recipientName?.trim() || "";
+  const recipientPhone = order.recipientPhone?.trim() || "";
+  const customerName =
+    order.customer && typeof order.customer === "object" && order.customer.name
+      ? order.customer.name.trim()
+      : "";
+
+  const senderPhoneDigits = senderPhone
+    .replace(/\D/g, "")
+    .replace(/^234/, "");
+
+  const hasStaleCityBikeSender =
+    senderName.toLowerCase().includes("citybike") ||
+    senderPhoneDigits === "9152661473" ||
+    senderPhoneDigits === "09152661473";
+
+  if (!hasStaleCityBikeSender && senderName && senderPhone) {
+    return order;
+  }
+
+  return {
+    ...order,
+    senderName:
+      senderName && !hasStaleCityBikeSender
+        ? senderName
+        : recipientName || customerName || senderName || undefined,
+    senderPhone:
+      senderPhone && !hasStaleCityBikeSender
+        ? senderPhone
+        : recipientPhone || senderPhone || undefined,
+  };
+}
+
 type Params = {
   params: Promise<{
     id: string;

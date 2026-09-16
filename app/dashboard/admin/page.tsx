@@ -197,30 +197,11 @@ type OrderStatusFilter =
   | "delivered"
   | "all";
 
-function isCityBikeAdminSender(
-  senderName?: string,
-  senderPhone?: string
-): boolean {
-  const normalizedName = senderName?.trim().toLowerCase() || "";
-  const normalizedPhone = senderPhone
-    ?.replace(/\D/g, "")
-    .replace(/^234/, "") || "";
-
-  return (
-    normalizedName.includes("citybike") ||
-    normalizedPhone === "9152661473" ||
-    normalizedPhone === "09152661473"
-  );
-}
-
 function formatSenderInfo(order: OrderClient): string {
   const senderName = order.senderName?.trim();
   const senderPhone = order.senderPhone?.trim();
-  const hasSenderDetails =
-    Boolean(senderName || senderPhone) &&
-    !isCityBikeAdminSender(senderName, senderPhone);
 
-  if (hasSenderDetails) {
+  if (senderName || senderPhone) {
     const base = senderName || "Sender";
     const phone = senderPhone ? ` (${senderPhone})` : "";
     const walkInTag = order.isAdminCreated ? " — walk-in" : "";
@@ -249,19 +230,21 @@ function formatSenderInfo(order: OrderClient): string {
 }
 
 function getCustomerHeading(order: OrderClient): string {
-  if (order.customer?.name) {
-    return order.customer.name;
+  if (order.isAdminCreated) {
+    return (
+      order.senderName?.trim() ||
+      order.recipientName?.trim() ||
+      "Walk-in Customer"
+    );
   }
 
-  const senderName = order.senderName?.trim();
-
-  if (senderName) {
-    return senderName;
-  }
-
-  return order.recipientName || "Walk-in Customer";
+  return (
+    order.customer?.name ||
+    order.senderName?.trim() ||
+    order.recipientName ||
+    "Walk-in Customer"
+  );
 }
-
 function getOrderCategory(
   serviceType: ServiceType
 ): Exclude<OrderCategory, "all"> {
@@ -365,15 +348,10 @@ function recipientWhatsAppLink(order: OrderClient): string {
 
 function senderWhatsAppLink(order: OrderClient): string {
   const senderName =
-    isCityBikeAdminSender(
-      order.senderName,
-      order.senderPhone
-    )
+    order.senderName?.trim() ||
+    (order.isAdminCreated
       ? order.recipientName || order.customer?.name || "there"
-      : order.senderName ||
-        (order.isAdminCreated
-          ? order.recipientName || order.customer?.name || "there"
-          : order.customer?.name || "there");
+      : order.customer?.name || "there");
 
   const message = `Hi ${senderName}, this is CityBike Logistics with an update on your order. ${statusMessageFor(
     order
@@ -384,15 +362,10 @@ function senderWhatsAppLink(order: OrderClient): string {
   )}`;
 
   const phone =
-    isCityBikeAdminSender(
-      order.senderName,
-      order.senderPhone
-    )
+    order.senderPhone?.trim() ||
+    (order.isAdminCreated
       ? order.recipientPhone || order.customer?.phone || ""
-      : order.senderPhone ||
-        (order.isAdminCreated
-          ? order.recipientPhone || order.customer?.phone || ""
-          : order.customer?.phone || "");
+      : order.customer?.phone || "");
 
   const to = toWhatsAppDigits(phone);
 

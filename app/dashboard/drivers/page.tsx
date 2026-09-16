@@ -130,14 +130,9 @@ export default function DriverDashboard() {
           const senderLabel = (() => {
             const senderName = o.senderName?.trim();
             const senderPhone = o.senderPhone?.trim();
-            const senderIsCityBike =
-              (senderName && senderName.toLowerCase().includes("citybike")) ||
-              (senderPhone && senderPhone.replace(/\D/g, "").replace(/^234/, "") === "9152661473");
 
             if (senderName || senderPhone) {
-              if (!senderIsCityBike) {
-                return `${senderName || "Sender"}${senderPhone ? ` (${senderPhone})` : ""}`;
-              }
+              return `${senderName || "Sender"}${senderPhone ? ` (${senderPhone})` : ""}`;
             }
 
             if (o.isAdminCreated && (o.recipientName || o.recipientPhone)) {
