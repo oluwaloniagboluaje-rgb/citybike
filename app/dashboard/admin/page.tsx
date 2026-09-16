@@ -214,16 +214,14 @@ function formatSenderInfo(order: OrderClient): string {
     const recipientPhone = order.recipientPhone?.trim();
 
     if (recipientName || recipientPhone) {
-      return `${recipientName || "Sender"}${
-        recipientPhone ? ` (${recipientPhone})` : ""
-      }`;
+      return `${recipientName || "Sender"}${recipientPhone ? ` (${recipientPhone})` : ""
+        }`;
     }
   }
 
   if (order.customer) {
-    return `${order.customer.name}${
-      order.customer.phone ? ` (${order.customer.phone})` : ""
-    }`;
+    return `${order.customer.name}${order.customer.phone ? ` (${order.customer.phone})` : ""
+      }`;
   }
 
   return "Unknown";
@@ -329,15 +327,13 @@ function statusMessageFor(order: OrderClient): string {
 }
 
 function recipientWhatsAppLink(order: OrderClient): string {
-  const message = `Hi ${
-    order.recipientName
-  }, this is CityBike Logistics with an update on your delivery. ${statusMessageFor(
-    order
-  )} Tracking number: #${
-    order.trackingNumber
-  }. Track it here: ${trackingUrlFor(
-    order.trackingNumber
-  )}`;
+  const message = `Hi ${order.recipientName
+    }, this is CityBike Logistics with an update on your delivery. ${statusMessageFor(
+      order
+    )} Tracking number: #${order.trackingNumber
+    }. Track it here: ${trackingUrlFor(
+      order.trackingNumber
+    )}`;
 
   const to = toWhatsAppDigits(order.recipientPhone);
 
@@ -355,11 +351,10 @@ function senderWhatsAppLink(order: OrderClient): string {
 
   const message = `Hi ${senderName}, this is CityBike Logistics with an update on your order. ${statusMessageFor(
     order
-  )} Tracking number: #${
-    order.trackingNumber
-  }. Track it here: ${trackingUrlFor(
-    order.trackingNumber
-  )}`;
+  )} Tracking number: #${order.trackingNumber
+    }. Track it here: ${trackingUrlFor(
+      order.trackingNumber
+    )}`;
 
   const phone =
     order.senderPhone?.trim() ||
@@ -1519,11 +1514,10 @@ export default function AdminDashboard() {
                               tab.value as OrderStatusFilter
                             )
                           }
-                          className={`rounded-md px-3 py-2 text-sm font-medium transition ${
-                            active
-                              ? "bg-neutral-800 text-white"
-                              : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                          }`}
+                          className={`rounded-md px-3 py-2 text-sm font-medium transition ${active
+                            ? "bg-neutral-800 text-white"
+                            : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                            }`}
                         >
                           {tab.label} ({tab.count})
                         </button>
@@ -1570,11 +1564,10 @@ export default function AdminDashboard() {
                               tab.value as OrderCategory
                             )
                           }
-                          className={`rounded-md px-3 py-2 text-sm font-medium transition ${
-                            active
-                              ? "bg-orange-600 text-white"
-                              : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                          }`}
+                          className={`rounded-md px-3 py-2 text-sm font-medium transition ${active
+                            ? "bg-orange-600 text-white"
+                            : "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                            }`}
                         >
                           {tab.label}
                         </button>
@@ -1648,10 +1641,10 @@ export default function AdminDashboard() {
                 {group.items.map((o) => {
                   const nextAction =
                     o.serviceType ===
-                    "interstate"
+                      "interstate"
                       ? INTERSTATE_NEXT_STATUS[
-                          o.status
-                        ]
+                      o.status
+                      ]
                       : NEXT_STATUS[o.status];
 
                   const isUploadingThis =
@@ -1690,6 +1683,15 @@ export default function AdminDashboard() {
                       .internationalStatusHistory ||
                     [];
 
+                  const latestInternationalStatus =
+                    internationalHistory.length > 0
+                      ? internationalHistory[internationalHistory.length - 1].status
+                      : o.status;
+
+                  const isInternationalDelivered =
+                    o.serviceType === "international" &&
+                    String(latestInternationalStatus).toLowerCase() === "delivered";
+
                   return (
                     <div
                       key={o._id}
@@ -1697,6 +1699,7 @@ export default function AdminDashboard() {
                       className="rounded-lg border border-neutral-200 bg-white p-4"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
+                        
                         <div className="min-w-0">
                           <Link
                             href={`/orders/${o._id}`}
@@ -1729,7 +1732,7 @@ export default function AdminDashboard() {
                                 {o.pickup.address},{" "}
                                 {o.pickup.city}
                                 {o.pickup.country !==
-                                "Nigeria"
+                                  "Nigeria"
                                   ? `, ${o.pickup.country}`
                                   : ""}
                               </span>
@@ -1824,104 +1827,104 @@ export default function AdminDashboard() {
                           {(o.serviceType ===
                             "dhl_express" ||
                             o.serviceType ===
-                              "international") && (
-                            <div className="mt-2 rounded-md bg-neutral-50 p-2">
-                              <p className="text-xs font-medium text-neutral-500">
-                                Carrier tracking
-                                (internal only —
-                                not shown to
-                                customer)
-                              </p>
-
-                              {o.externalTrackingNumber ? (
-                                <p className="mt-1 flex items-center gap-2 text-sm text-neutral-700">
-                                  <span className="font-mono">
-                                    {o.carrierName ||
-                                      "DHL"}
-                                    :{" "}
-                                    {
-                                      o.externalTrackingNumber
-                                    }
-                                  </span>
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setCarrierTrackingInputs(
-                                        (prev) => ({
-                                          ...prev,
-                                          [o._id]:
-                                            o.externalTrackingNumber ||
-                                            "",
-                                        })
-                                      )
-                                    }
-                                    className="text-xs font-medium text-orange-600 underline"
-                                  >
-                                    Edit
-                                  </button>
+                            "international") && (
+                              <div className="mt-2 rounded-md bg-neutral-50 p-2">
+                                <p className="text-xs font-medium text-neutral-500">
+                                  Carrier tracking
+                                  (internal only —
+                                  not shown to
+                                  customer)
                                 </p>
-                              ) : null}
 
-                              {(carrierTrackingInputs[
-                                o._id
-                              ] !== undefined ||
-                                !o.externalTrackingNumber) && (
-                                <div className="mt-1 flex items-center gap-2">
-                                  <input
-                                    value={
-                                      carrierTrackingInputs[
-                                        o._id
-                                      ] ?? ""
-                                    }
-                                    onChange={(e) =>
-                                      setCarrierTrackingInputs(
-                                        (prev) => ({
-                                          ...prev,
-                                          [o._id]:
-                                            e.target
-                                              .value,
-                                        })
-                                      )
-                                    }
-                                    placeholder="Enter DHL tracking number"
-                                    className="w-full rounded-md border border-neutral-300 px-2 py-1 text-xs"
-                                  />
+                                {o.externalTrackingNumber ? (
+                                  <p className="mt-1 flex items-center gap-2 text-sm text-neutral-700">
+                                    <span className="font-mono">
+                                      {o.carrierName ||
+                                        "DHL"}
+                                      :{" "}
+                                      {
+                                        o.externalTrackingNumber
+                                      }
+                                    </span>
 
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      void saveCarrierTracking(
-                                        o._id
-                                      )
-                                    }
-                                    disabled={
-                                      savingCarrierTrackingFor ===
-                                        o._id ||
-                                      !carrierTrackingInputs[
-                                        o._id
-                                      ]?.trim()
-                                    }
-                                    className="shrink-0 rounded-md bg-neutral-800 px-2 py-1 text-xs font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
-                                  >
-                                    {savingCarrierTrackingFor ===
-                                    o._id
-                                      ? "Saving..."
-                                      : "Save"}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setCarrierTrackingInputs(
+                                          (prev) => ({
+                                            ...prev,
+                                            [o._id]:
+                                              o.externalTrackingNumber ||
+                                              "",
+                                          })
+                                        )
+                                      }
+                                      className="text-xs font-medium text-orange-600 underline"
+                                    >
+                                      Edit
+                                    </button>
+                                  </p>
+                                ) : null}
+
+                                {(carrierTrackingInputs[
+                                  o._id
+                                ] !== undefined ||
+                                  !o.externalTrackingNumber) && (
+                                    <div className="mt-1 flex items-center gap-2">
+                                      <input
+                                        value={
+                                          carrierTrackingInputs[
+                                          o._id
+                                          ] ?? ""
+                                        }
+                                        onChange={(e) =>
+                                          setCarrierTrackingInputs(
+                                            (prev) => ({
+                                              ...prev,
+                                              [o._id]:
+                                                e.target
+                                                  .value,
+                                            })
+                                          )
+                                        }
+                                        placeholder="Enter DHL tracking number"
+                                        className="w-full rounded-md border border-neutral-300 px-2 py-1 text-xs"
+                                      />
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          void saveCarrierTracking(
+                                            o._id
+                                          )
+                                        }
+                                        disabled={
+                                          savingCarrierTrackingFor ===
+                                          o._id ||
+                                          !carrierTrackingInputs[
+                                            o._id
+                                          ]?.trim()
+                                        }
+                                        className="shrink-0 rounded-md bg-neutral-800 px-2 py-1 text-xs font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+                                      >
+                                        {savingCarrierTrackingFor ===
+                                          o._id
+                                          ? "Saving..."
+                                          : "Save"}
+                                      </button>
+                                    </div>
+                                  )}
+                              </div>
+                            )}
 
                           {/* =================================================
                               DHL EXPRESS STATUS PANEL
                               ================================================= */}
                           {o.externalTrackingNumber &&
                             o.carrierName ===
-                              "DHL" &&
+                            "DHL" &&
                             o.serviceType ===
-                              "dhl_express" && (
+                            "dhl_express" && (
                               <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
                                 <div className="flex items-center justify-between gap-2">
                                   <p className="text-xs font-bold uppercase tracking-wide text-blue-700">
@@ -1937,7 +1940,7 @@ export default function AdminDashboard() {
                                 {o.dhlStatusHistory &&
                                   o.dhlStatusHistory
                                     .length >
-                                    0 && (
+                                  0 && (
                                     <div className="mt-2 space-y-2 border-t border-blue-100 pt-2">
                                       {o.dhlStatusHistory.map(
                                         (
@@ -1980,7 +1983,7 @@ export default function AdminDashboard() {
                                     list={`dhl-status-options-${o._id}`}
                                     value={
                                       dhlStatusInputs[
-                                        o._id
+                                      o._id
                                       ] ?? ""
                                     }
                                     onChange={(e) =>
@@ -2032,7 +2035,7 @@ export default function AdminDashboard() {
                                   <input
                                     value={
                                       dhlDescriptionInputs[
-                                        o._id
+                                      o._id
                                       ] ?? ""
                                     }
                                     onChange={(e) =>
@@ -2058,7 +2061,7 @@ export default function AdminDashboard() {
                                     }
                                     disabled={
                                       savingDhlStatusFor ===
-                                        o._id ||
+                                      o._id ||
                                       !dhlStatusInputs[
                                         o._id
                                       ]?.trim()
@@ -2066,7 +2069,7 @@ export default function AdminDashboard() {
                                     className="w-full rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     {savingDhlStatusFor ===
-                                    o._id
+                                      o._id
                                       ? "Updating..."
                                       : "Add DHL Status Update"}
                                   </button>
@@ -2077,184 +2080,184 @@ export default function AdminDashboard() {
                           {/* =================================================
                               INTERNATIONAL CARGO STATUS PANEL
                               ================================================= */}
-                          {o.serviceType ===
-                            "international" && (
-                            <div className="mt-2 rounded-lg border border-orange-200 bg-linear-to-br from-orange-50 to-amber-50 p-3 shadow-sm">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-600 text-white">
-                                    <Globe2 className="h-4 w-4" />
+                          {o.serviceType === "international" &&
+                            !isInternationalDelivered && (
+                              <div className="mt-2 rounded-lg border border-orange-200 bg-linear-to-br from-orange-50 to-amber-50 p-3 shadow-sm">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-600 text-white">
+                                      <Globe2 className="h-4 w-4" />
+                                    </div>
+
+                                    <div>
+                                      <p className="text-xs font-bold uppercase tracking-wide text-orange-800">
+                                        International
+                                        Cargo
+                                      </p>
+
+                                      <p className="text-[10px] text-orange-600">
+                                        Shipment status
+                                        updates
+                                      </p>
+                                    </div>
                                   </div>
 
-                                  <div>
-                                    <p className="text-xs font-bold uppercase tracking-wide text-orange-800">
-                                      International
-                                      Cargo
-                                    </p>
-
-                                    <p className="text-[10px] text-orange-600">
-                                      Shipment status
-                                      updates
-                                    </p>
-                                  </div>
+                                  <span className="rounded-full bg-orange-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                    CUSTOMER VISIBLE
+                                  </span>
                                 </div>
 
-                                <span className="rounded-full bg-orange-600 px-2 py-0.5 text-[10px] font-semibold text-white">
-                                  CUSTOMER VISIBLE
-                                </span>
-                              </div>
+                                {internationalHistory.length >
+                                  0 && (
+                                    <div className="mt-3 space-y-2 border-t border-orange-200 pt-3">
+                                      {internationalHistory.map(
+                                        (
+                                          h,
+                                          idx
+                                        ) => (
+                                          <div
+                                            key={idx}
+                                            className="flex items-start gap-2 text-xs text-orange-800"
+                                          >
+                                            <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-orange-600" />
 
-                              {internationalHistory.length >
-                                0 && (
-                                <div className="mt-3 space-y-2 border-t border-orange-200 pt-3">
-                                  {internationalHistory.map(
-                                    (
-                                      h,
-                                      idx
-                                    ) => (
-                                      <div
-                                        key={idx}
-                                        className="flex items-start gap-2 text-xs text-orange-800"
-                                      >
-                                        <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-orange-600" />
+                                            <div className="min-w-0">
+                                              <div>
+                                                <span className="font-semibold">
+                                                  {STATUS_LABELS[
+                                                    h.status as OrderStatus
+                                                  ] ||
+                                                    h.status}
+                                                </span>{" "}
+                                                <span className="text-orange-500">
+                                                  •
+                                                </span>{" "}
+                                                <span className="text-orange-600">
+                                                  {new Date(
+                                                    h.at
+                                                  ).toLocaleString()}
+                                                </span>
+                                              </div>
 
-                                        <div className="min-w-0">
-                                          <div>
-                                            <span className="font-semibold">
-                                              {STATUS_LABELS[
-                                                h.status as OrderStatus
-                                              ] ||
-                                                h.status}
-                                            </span>{" "}
-                                            <span className="text-orange-500">
-                                              •
-                                            </span>{" "}
-                                            <span className="text-orange-600">
-                                              {new Date(
-                                                h.at
-                                              ).toLocaleString()}
-                                            </span>
+                                              {h.description && (
+                                                <p className="mt-0.5 text-[11px] leading-4 text-orange-700">
+                                                  {
+                                                    h.description
+                                                  }
+                                                </p>
+                                              )}
+                                            </div>
                                           </div>
-
-                                          {h.description && (
-                                            <p className="mt-0.5 text-[11px] leading-4 text-orange-700">
-                                              {
-                                                h.description
-                                              }
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )
+                                        )
+                                      )}
+                                    </div>
                                   )}
-                                </div>
-                              )}
 
-                              <div className="mt-3 space-y-2">
-                                <label className="block text-[11px] font-semibold text-orange-800">
-                                  International
-                                  status
-                                </label>
+                                <div className="mt-3 space-y-2">
+                                  <label className="block text-[11px] font-semibold text-orange-800">
+                                    International
+                                    status
+                                  </label>
 
-                                <input
-                                  list={`international-status-options-${o._id}`}
-                                  value={
-                                    internationalStatusInputs[
+                                  <input
+                                    list={`international-status-options-${o._id}`}
+                                    value={
+                                      internationalStatusInputs[
                                       o._id
-                                    ] ?? ""
-                                  }
-                                  onChange={(e) =>
-                                    setInternationalStatusInputs(
-                                      (prev) => ({
-                                        ...prev,
-                                        [o._id]:
-                                          e.target
-                                            .value,
-                                      })
-                                    )
-                                  }
-                                  placeholder="Type or choose international status..."
-                                  className="w-full rounded-md border border-orange-300 bg-white px-3 py-2 text-xs outline-none transition focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                                />
+                                      ] ?? ""
+                                    }
+                                    onChange={(e) =>
+                                      setInternationalStatusInputs(
+                                        (prev) => ({
+                                          ...prev,
+                                          [o._id]:
+                                            e.target
+                                              .value,
+                                        })
+                                      )
+                                    }
+                                    placeholder="Type or choose international status..."
+                                    className="w-full rounded-md border border-orange-300 bg-white px-3 py-2 text-xs outline-none transition focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                                  />
 
-                                <datalist
-                                  id={`international-status-options-${o._id}`}
-                                >
-                                  {getStatusOptionsForOrder(
-                                    o
-                                  ).map(
-                                    (
-                                      status
-                                    ) => (
-                                      <option
-                                        key={
-                                          status
-                                        }
-                                        value={
-                                          status
-                                        }
-                                      >
-                                        {
-                                          STATUS_LABELS[
+                                  <datalist
+                                    id={`international-status-options-${o._id}`}
+                                  >
+                                    {getStatusOptionsForOrder(
+                                      o
+                                    ).map(
+                                      (
+                                        status
+                                      ) => (
+                                        <option
+                                          key={
                                             status
-                                          ]
-                                        }
-                                      </option>
-                                    )
-                                  )}
-                                </datalist>
+                                          }
+                                          value={
+                                            status
+                                          }
+                                        >
+                                          {
+                                            STATUS_LABELS[
+                                            status
+                                            ]
+                                          }
+                                        </option>
+                                      )
+                                    )}
+                                  </datalist>
 
-                                <label className="block text-[11px] font-semibold text-orange-800">
-                                  Description
-                                </label>
+                                  <label className="block text-[11px] font-semibold text-orange-800">
+                                    Description
+                                  </label>
 
-                                <textarea
-                                  value={
-                                    internationalDescriptionInputs[
+                                  <textarea
+                                    value={
+                                      internationalDescriptionInputs[
                                       o._id
-                                    ] ?? ""
-                                  }
-                                  onChange={(e) =>
-                                    setInternationalDescriptionInputs(
-                                      (prev) => ({
-                                        ...prev,
-                                        [o._id]:
-                                          e.target
-                                            .value,
-                                      })
-                                    )
-                                  }
-                                  placeholder="Optional: Add a description for this international cargo update..."
-                                  rows={3}
-                                  className="w-full resize-none rounded-md border border-orange-300 bg-white px-3 py-2 text-xs outline-none transition focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                                />
+                                      ] ?? ""
+                                    }
+                                    onChange={(e) =>
+                                      setInternationalDescriptionInputs(
+                                        (prev) => ({
+                                          ...prev,
+                                          [o._id]:
+                                            e.target
+                                              .value,
+                                        })
+                                      )
+                                    }
+                                    placeholder="Optional: Add a description for this international cargo update..."
+                                    rows={3}
+                                    className="w-full resize-none rounded-md border border-orange-300 bg-white px-3 py-2 text-xs outline-none transition focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                                  />
 
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void saveInternationalStatus(
-                                      o._id
-                                    )
-                                  }
-                                  disabled={
-                                    savingInternationalStatusFor ===
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void saveInternationalStatus(
+                                        o._id
+                                      )
+                                    }
+                                    disabled={
+                                      savingInternationalStatusFor ===
                                       o._id ||
-                                    !internationalStatusInputs[
-                                      o._id
-                                    ]?.trim()
-                                  }
-                                  className="flex w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  <Globe2 className="h-3.5 w-3.5" />
+                                      !internationalStatusInputs[
+                                        o._id
+                                      ]?.trim()
+                                    }
+                                    className="flex w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Globe2 className="h-3.5 w-3.5" />
 
-                                  {savingInternationalStatusFor ===
-                                  o._id
-                                    ? "Updating..."
-                                    : "Add International Status Update"}
-                                </button>
+                                    {savingInternationalStatusFor ===
+                                      o._id
+                                      ? "Updating..."
+                                      : "Add International Status Update"}
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
                         </div>
 
                         <div className="flex flex-col items-end gap-1.5">
@@ -2264,24 +2267,24 @@ export default function AdminDashboard() {
 
                           {o.status ===
                             "in_transit" && (
-                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                              IN TRANSIT
-                            </span>
-                          )}
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                IN TRANSIT
+                              </span>
+                            )}
 
                           {o.status ===
                             "out_for_delivery" && (
-                            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
-                              OUT FOR DELIVERY
-                            </span>
-                          )}
+                              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
+                                OUT FOR DELIVERY
+                              </span>
+                            )}
 
                           {o.status ===
                             "delivered" && (
-                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
-                              COMPLETED
-                            </span>
-                          )}
+                              <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                                COMPLETED
+                              </span>
+                            )}
 
                           {o.isAdminCreated && (
                             <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[11px] font-medium text-white">
@@ -2291,83 +2294,102 @@ export default function AdminDashboard() {
 
                           {o.serviceType ===
                             "international" && (
-                            <span className="flex items-center gap-1 rounded-full bg-orange-600 px-2 py-0.5 text-[11px] font-medium text-white">
-                              <Globe2 className="h-3 w-3" />
-                              International Cargo
-                            </span>
-                          )}
+                              <span className="flex items-center gap-1 rounded-full bg-orange-600 px-2 py-0.5 text-[11px] font-medium text-white">
+                                <Globe2 className="h-3 w-3" />
+                                International Cargo
+                              </span>
+                            )}
 
                           {o.serviceType ===
                             "dhl_express" && (
-                            <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-medium text-white">
-                              <Globe2 className="h-3 w-3" />
-                              DHL Express
-                            </span>
-                          )}
+                              <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-medium text-white">
+                                <Globe2 className="h-3 w-3" />
+                                DHL Express
+                              </span>
+                            )}
 
                           {o.serviceType ===
                             "interstate" && (
-                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
-                              Interstate
-                            </span>
-                          )}
+                              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                                Interstate
+                              </span>
+                            )}
 
                           {(o.serviceType ===
                             "local" ||
                             o.serviceType ===
-                              "ecommerce" ||
+                            "ecommerce" ||
                             o.serviceType ===
-                              "errand" ||
+                            "errand" ||
                             o.serviceType ===
-                              "corporate") && (
-                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
-                              Local
-                            </span>
-                          )}
+                            "corporate") && (
+                              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
+                                Local
+                              </span>
+                            )}
                         </div>
                       </div>
 
                       {(o.paymentMethod ===
                         "bank_transfer" ||
                         o.paymentMethod ===
-                          "cash") && (
-                        <div className="mt-3 flex items-center gap-2 border-t border-neutral-100 pt-3 text-sm">
-                          <span className="text-neutral-500">
-                            Payment:
-                          </span>
+                        "cash") && (
+                          <div className="mt-3 flex items-center gap-2 border-t border-neutral-100 pt-3 text-sm">
+                            <span className="text-neutral-500">
+                              Payment:
+                            </span>
 
-                          <span
-                            className={
+                            <span
+                              className={
+                                o.paymentStatus ===
+                                  "paid"
+                                  ? "font-medium text-green-700"
+                                  : "font-medium text-yellow-700"
+                              }
+                            >
+                              {o.paymentStatus ===
+                                "paid"
+                                ? o.paymentMethod ===
+                                  "cash"
+                                  ? "Paid (Cash)"
+                                  : "Paid"
+                                : "Pending"}
+                            </span>
+
+                            {o.proofOfPaymentUrl &&
                               o.paymentStatus ===
-                              "paid"
-                                ? "font-medium text-green-700"
-                                : "font-medium text-yellow-700"
-                            }
-                          >
-                            {o.paymentStatus ===
-                            "paid"
-                              ? o.paymentMethod ===
-                                "cash"
-                                ? "Paid (Cash)"
-                                : "Paid"
-                              : "Pending"}
-                          </span>
-
-                          {o.proofOfPaymentUrl &&
-                            o.paymentStatus ===
                               "pending" && (
-                              <div className="flex items-center gap-2">
-                                <a
-                                  href={
-                                    o.proofOfPaymentUrl
-                                  }
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 underline"
-                                >
-                                  View Proof
-                                </a>
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    href={
+                                      o.proofOfPaymentUrl
+                                    }
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 underline"
+                                  >
+                                    View Proof
+                                  </a>
 
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void markAsPaid(
+                                        o._id
+                                      )
+                                    }
+                                    className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
+                                  >
+                                    Mark as Paid
+                                  </button>
+                                </div>
+                              )}
+
+                            {!o.proofOfPaymentUrl &&
+                              o.paymentStatus ===
+                              "pending" &&
+                              o.paymentMethod ===
+                              "bank_transfer" && (
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -2379,28 +2401,9 @@ export default function AdminDashboard() {
                                 >
                                   Mark as Paid
                                 </button>
-                              </div>
-                            )}
-
-                          {!o.proofOfPaymentUrl &&
-                            o.paymentStatus ===
-                              "pending" &&
-                            o.paymentMethod ===
-                              "bank_transfer" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void markAsPaid(
-                                    o._id
-                                  )
-                                }
-                                className="rounded-md bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
-                              >
-                                Mark as Paid
-                              </button>
-                            )}
-                        </div>
-                      )}
+                              )}
+                          </div>
+                        )}
 
                       {o.customer?.email && (
                         <div className="mt-3 border-t border-neutral-100 pt-3 text-xs text-neutral-500">
@@ -2434,61 +2437,61 @@ export default function AdminDashboard() {
                         {(o.status ===
                           "confirmed" ||
                           o.status ===
-                            "pending") && (
-                          <>
-                            <select
-                              value={
-                                selectedDriver[
+                          "pending") && (
+                            <>
+                              <select
+                                value={
+                                  selectedDriver[
                                   o._id
-                                ] || ""
-                              }
-                              onChange={(e) =>
-                                setSelectedDriver(
-                                  (prev) => ({
-                                    ...prev,
-                                    [o._id]:
-                                      e.target
-                                        .value,
-                                  })
-                                )
-                              }
-                              className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
-                            >
-                              <option value="">
-                                Select driver...
-                              </option>
-
-                              {drivers.map((d) => (
-                                <option
-                                  key={d._id}
-                                  value={d._id}
-                                >
-                                  {d.name}{" "}
-                                  {d.vehicleType
-                                    ? `(${d.vehicleType})`
-                                    : ""}
+                                  ] || ""
+                                }
+                                onChange={(e) =>
+                                  setSelectedDriver(
+                                    (prev) => ({
+                                      ...prev,
+                                      [o._id]:
+                                        e.target
+                                          .value,
+                                    })
+                                  )
+                                }
+                                className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
+                              >
+                                <option value="">
+                                  Select driver...
                                 </option>
-                              ))}
-                            </select>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void assignDriver(
+                                {drivers.map((d) => (
+                                  <option
+                                    key={d._id}
+                                    value={d._id}
+                                  >
+                                    {d.name}{" "}
+                                    {d.vehicleType
+                                      ? `(${d.vehicleType})`
+                                      : ""}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void assignDriver(
+                                    o._id
+                                  )
+                                }
+                                disabled={
+                                  !selectedDriver[
                                   o._id
-                                )
-                              }
-                              disabled={
-                                !selectedDriver[
-                                  o._id
-                                ]
-                              }
-                              className="rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700 disabled:opacity-50"
-                            >
-                              Assign Driver
-                            </button>
-                          </>
-                        )}
+                                  ]
+                                }
+                                className="rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                              >
+                                Assign Driver
+                              </button>
+                            </>
+                          )}
 
                         {nextAction && (
                           <button
@@ -2506,72 +2509,73 @@ export default function AdminDashboard() {
                             className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
                           >
                             {updatingStatus ===
-                            o._id
+                              o._id
                               ? "Updating..."
                               : nextAction.label}
                           </button>
                         )}
 
-                        {canSetStatus && (
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={
-                                selectedStatus[
-                                  o._id
-                                ] ?? ""
-                              }
-                              onChange={(e) =>
-                                setSelectedStatus(
-                                  (prev) => ({
-                                    ...prev,
-                                    [o._id]:
-                                      e.target
-                                        .value,
-                                  })
-                                )
-                              }
-                              className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
-                            >
-                              <option value="">
-                                Set status...
-                              </option>
-
-                              {getStatusOptionsForOrder(
-                                o
-                              ).map((status) => (
-                                <option
-                                  key={status}
-                                  value={status}
-                                >
-                                  {
-                                    STATUS_LABELS[
-                                      status
-                                    ]
-                                  }
+                        {canSetStatus &&
+                          !(
+                            o.serviceType === "international" &&
+                            latestInternationalStatus === "delivered"
+                          ) && (
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={
+                                  selectedStatus[o._id] ?? ""
+                                } onChange={(e) =>
+                                  setSelectedStatus(
+                                    (prev) => ({
+                                      ...prev,
+                                      [o._id]:
+                                        e.target
+                                          .value,
+                                    })
+                                  )
+                                }
+                                className="rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
+                              >
+                                <option value="">
+                                  Set status...
                                 </option>
-                              ))}
-                            </select>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void setCustomStatus(
+                                {getStatusOptionsForOrder(
+                                  o
+                                ).map((status) => (
+                                  <option
+                                    key={status}
+                                    value={status}
+                                  >
+                                    {
+                                      STATUS_LABELS[
+                                      status
+                                      ]
+                                    }
+                                  </option>
+                                ))}
+                              </select>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void setCustomStatus(
+                                    o._id
+                                  )
+                                }
+                                disabled={
+                                  !selectedStatus[
                                   o._id
-                                )
-                              }
-                              disabled={
-                                !selectedStatus[
+                                  ] ||
+                                  updatingStatus ===
                                   o._id
-                                ] ||
-                                updatingStatus ===
-                                  o._id
-                              }
-                              className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
-                            >
-                              Update
-                            </button>
-                          </div>
-                        )}
+                                }
+                                className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                              >
+                                Update
+                              </button>
+                            </div>
+                          )}
 
                         <a
                           href={recipientWhatsAppLink(
@@ -2585,7 +2589,7 @@ export default function AdminDashboard() {
                           Notify Recipient (
                           {
                             STATUS_LABELS[
-                              o.status
+                            o.status
                             ]
                           }
                           )
@@ -2593,24 +2597,24 @@ export default function AdminDashboard() {
 
                         {(o.senderPhone ||
                           o.customer?.phone) && (
-                          <a
-                            href={senderWhatsAppLink(
-                              o
-                            )}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" />
-                            Notify Sender (
-                            {
-                              STATUS_LABELS[
+                            <a
+                              href={senderWhatsAppLink(
+                                o
+                              )}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" />
+                              Notify Sender (
+                              {
+                                STATUS_LABELS[
                                 o.status
-                              ]
-                            }
-                            )
-                          </a>
-                        )}
+                                ]
+                              }
+                              )
+                            </a>
+                          )}
 
                         <button
                           type="button"
@@ -2631,8 +2635,8 @@ export default function AdminDashboard() {
                           {isUploadingThis
                             ? "Uploading..."
                             : o.pickupPhotoUrl
-                            ? "Replace Pickup Photo"
-                            : "Upload Pickup Photo"}
+                              ? "Replace Pickup Photo"
+                              : "Upload Pickup Photo"}
                         </button>
 
                         <button
@@ -2654,14 +2658,14 @@ export default function AdminDashboard() {
                           {isUploadingThis
                             ? "Uploading..."
                             : o.deliveryPhotoUrl
-                            ? "Replace Delivery Photo"
-                            : "Upload Delivery Photo"}
+                              ? "Replace Delivery Photo"
+                              : "Upload Delivery Photo"}
                         </button>
 
                         {o.status !==
                           "delivered" &&
                           o.status !==
-                            "cancelled" && (
+                          "cancelled" && (
                             <button
                               type="button"
                               onClick={() =>
@@ -2925,11 +2929,11 @@ function AdminCreateOrderForm({
 
       const combinedRecipientPhone =
         cleanPhoneCode &&
-        cleanRecipientPhone
+          cleanRecipientPhone
           ? `${cleanPhoneCode}${cleanRecipientPhone.replace(
-              /^0+/,
-              ""
-            )}`
+            /^0+/,
+            ""
+          )}`
           : recipientPhone;
 
       const payload: Record<
@@ -2972,7 +2976,7 @@ function AdminCreateOrderForm({
 
         weightKg:
           isInternational &&
-          weightKg
+            weightKg
             ? parseFloat(weightKg)
             : undefined,
 
@@ -3019,7 +3023,7 @@ function AdminCreateOrderForm({
       if (!res.ok || !data.order) {
         setError(
           data.error ||
-            "Could not create order"
+          "Could not create order"
         );
         return;
       }
@@ -3081,8 +3085,8 @@ function AdminCreateOrderForm({
 
     const whatsappHref = whatsappPhone
       ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(
-          message
-        )}`
+        message
+      )}`
       : "#";
 
     return (
@@ -3225,43 +3229,43 @@ function AdminCreateOrderForm({
 
           {customerResults.length >
             0 && (
-            <div className="mt-1 max-h-48 w-full overflow-auto rounded-md border border-neutral-200 bg-white">
-              {customerResults.map(
-                (u) => (
-                  <button
-                    key={u._id}
-                    type="button"
-                    onClick={() => {
-                      setCustomerId(
-                        u._id
-                      );
-                      setCustomerEmail(
-                        u.email
-                      );
-                      setCustomerQuery(
-                        `${u.name} <${u.email}>`
-                      );
-                      setCustomerResults(
-                        []
-                      );
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-neutral-50"
-                  >
-                    <div className="font-medium">
-                      {u.name}
-                    </div>
+              <div className="mt-1 max-h-48 w-full overflow-auto rounded-md border border-neutral-200 bg-white">
+                {customerResults.map(
+                  (u) => (
+                    <button
+                      key={u._id}
+                      type="button"
+                      onClick={() => {
+                        setCustomerId(
+                          u._id
+                        );
+                        setCustomerEmail(
+                          u.email
+                        );
+                        setCustomerQuery(
+                          `${u.name} <${u.email}>`
+                        );
+                        setCustomerResults(
+                          []
+                        );
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-neutral-50"
+                    >
+                      <div className="font-medium">
+                        {u.name}
+                      </div>
 
-                    <div className="text-xs text-neutral-500">
-                      {u.email}{" "}
-                      {u.phone
-                        ? `· ${u.phone}`
-                        : ""}
-                    </div>
-                  </button>
-                )
-              )}
-            </div>
-          )}
+                      <div className="text-xs text-neutral-500">
+                        {u.email}{" "}
+                        {u.phone
+                          ? `· ${u.phone}`
+                          : ""}
+                      </div>
+                    </button>
+                  )
+                )}
+              </div>
+            )}
 
           <div className="mt-2">
             <label className="mb-1 block text-sm font-medium text-neutral-700">
@@ -3440,9 +3444,9 @@ function AdminCreateOrderForm({
             onChange={(e) =>
               setPackageSize(
                 e.target.value as
-                  | "small"
-                  | "medium"
-                  | "large"
+                | "small"
+                | "medium"
+                | "large"
               )
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
@@ -3540,8 +3544,8 @@ function AdminCreateOrderForm({
           onChange={(e) =>
             setPaymentMethod(
               e.target.value as
-                | "bank_transfer"
-                | "cash"
+              | "bank_transfer"
+              | "cash"
             )
           }
           className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
