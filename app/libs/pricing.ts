@@ -51,6 +51,28 @@ function roundNaira(value: number) {
   return Math.round(value * POUND_TO_NAIRA);
 }
 
+function calculateNigeriaToUKPrice(weightKg: number) {
+  if (weightKg >= NIGERIA_TO_UK_FLAT_RATE_WEIGHT_KG) {
+    return NIGERIA_TO_UK_FLAT_RATE;
+  }
+
+  if (weightKg < 1) {
+    return Math.round(weightKg * NIGERIA_TO_UK_RATES[0]);
+  }
+
+  const lowerWeightKg = Math.floor(weightKg);
+  const lowerRate = NIGERIA_TO_UK_RATES[lowerWeightKg - 1];
+  const upperRate =
+    lowerWeightKg + 1 >= NIGERIA_TO_UK_FLAT_RATE_WEIGHT_KG
+      ? NIGERIA_TO_UK_FLAT_RATE
+      : NIGERIA_TO_UK_RATES[lowerWeightKg];
+  const fractionalWeight = weightKg - lowerWeightKg;
+
+  return Math.round(
+    lowerRate + (upperRate - lowerRate) * fractionalWeight
+  );
+}
+
 // ---- Domestic (distance-based) rates ----
 const BASE_FEE = 500; // flat starting fee in Naira
 const PER_KM_RATE = 150; // Naira per km
@@ -69,8 +91,7 @@ const DOMESTIC_SERVICE_MULTIPLIER: Record<DomesticServiceType, number> = {
 };
 
 // ---- International: priced per kg ----
-// Confirmed rate: UK = ₦9,000/kg. Other destinations use this as a
-// placeholder until you confirm their actual rates.
+// Other destinations use these rates as placeholders until confirmed.
 const PER_KG_RATE_BY_COUNTRY: Record<string, number> = {
   ireland: 15000,
   canada: 16000,
@@ -113,7 +134,17 @@ const EU_COUNTRIES = new Set([
 const DEFAULT_INTERNATIONAL_PER_KG_RATE = 9000;
 const EU_PER_KG_RATE = 16000;
 const PROTEIN_TO_UK_RATE = 10000;
-const NIGERIA_TO_UK_RATE = 9000;
+const NIGERIA_TO_UK_RATES = [
+  30000,
+  39000,
+  47000,
+  56000,
+  65000,
+  79000,
+  85000,
+] as const;
+const NIGERIA_TO_UK_FLAT_RATE_WEIGHT_KG = 8;
+const NIGERIA_TO_UK_FLAT_RATE = 100000;
 
 const POUND_TO_NAIRA = 1600;
 const UK_TO_NIGERIA_GENERAL_RATE_POUND = 7;
@@ -164,12 +195,12 @@ export function calculatePrice(params: {
       return roundNaira(GHANA_MUST_GO_RATE_POUND + PACKAGE_SIZE_FEE[packageSize]);
     }
 
-    if (isProteinToUK(origin, destination, description)) {
-      return Math.round(weight * PROTEIN_TO_UK_RATE + PACKAGE_SIZE_FEE[packageSize]);
+    if (origin === "nigeria" && destination === "united kingdom") {
+      return calculateNigeriaToUKPrice(weight);
     }
 
-    if (origin === "nigeria" && destination === "united kingdom") {
-      return Math.round(weight * NIGERIA_TO_UK_RATE + PACKAGE_SIZE_FEE[packageSize]);
+    if (isProteinToUK(origin, destination, description)) {
+      return Math.round(weight * PROTEIN_TO_UK_RATE + PACKAGE_SIZE_FEE[packageSize]);
     }
 
     if (origin === "united kingdom" && destination === "nigeria") {

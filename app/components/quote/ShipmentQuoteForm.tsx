@@ -42,9 +42,9 @@ const ROUTE_DETAIL: Record<
   },
   nigeria_to_uk: {
     summary:
-      "Express shipping starts at ₦89,000 for 0.5–2kg and increases with weight; above 10kg, rates are ₦33,000/kg.",
+      "Nigeria → UK rates: 1kg ₦30,000, 2kg ₦39,000, 3kg ₦47,000, 4kg ₦56,000, 5kg ₦65,000, 6kg ₦79,000, 7kg ₦85,000, and 8kg+ ₦100,000.",
     note:
-      "Sample pricing includes 2.5kg at ₦127,000, 3kg at ₦146,000, 4kg at ₦160,000, 5kg at ₦175,000, and 10kg at ₦291,000.",
+      "Fractional weights are prorated between the listed whole-kilogram rates.",
   },
   nigeria_to_europe: {
     summary: "Cargo shipping starts at ₦16,500/kg with a minimum of 15kg.",

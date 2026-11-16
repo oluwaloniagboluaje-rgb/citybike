@@ -610,6 +610,9 @@ function NewOrderForm({
 }: {
   onCreated: () => void;
 }) {
+  const [pickupCountry, setPickupCountry] =
+    useState("Nigeria");
+
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupCity, setPickupCity] = useState("");
   const [pickupState, setPickupState] = useState("");
@@ -657,15 +660,21 @@ function NewOrderForm({
   const [uploadDone, setUploadDone] = useState(false);
 
   /**
-   * International Cargo and DHL Express are both
-   * international destinations, but they remain separate
-   * service types.
+   * International Cargo and DHL Express remain separate
+   * service types, while either pickup or drop-off can be abroad.
    */
   const isInternational =
-    dropoffCountry.trim().toLowerCase() !== "nigeria";
+    pickupCountry.trim().toLowerCase() !==
+    dropoffCountry.trim().toLowerCase();
 
+  const finalServiceType =
+    isInternational && serviceType === "local"
+      ? "international"
+      : serviceType;
+
+  const requiresWeight = finalServiceType === "international";
   const isWhatsAppFlow =
-    WHATSAPP_PRICED_TYPES.has(serviceType);
+    WHATSAPP_PRICED_TYPES.has(finalServiceType);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -684,7 +693,7 @@ function NewOrderForm({
         pickupLoc = await geocodeAddress(
           pickupAddress,
           pickupCity,
-          "Nigeria"
+          pickupCountry
         );
       } catch {
         setError(
@@ -712,7 +721,8 @@ function NewOrderForm({
       /**
        * CREATE ORDER
        *
-       * serviceType is sent exactly as selected.
+       * Convert local service to international when the route crosses
+       * borders, matching the order API's service-type normalization.
        *
        * "international" remains International Cargo.
        * "dhl_express" remains DHL Express.
@@ -745,14 +755,14 @@ function NewOrderForm({
             lng: dropoffLoc.lng,
           },
 
-          serviceType,
+          serviceType: finalServiceType,
 
           packageDescription,
 
           packageSize,
 
           weightKg:
-            isInternational && weightKg
+            requiresWeight && weightKg
               ? parseFloat(weightKg)
               : undefined,
 
@@ -1012,8 +1022,22 @@ function NewOrderForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <fieldset className="space-y-2 rounded-md border border-neutral-200 p-3">
           <legend className="px-1 text-xs font-semibold text-neutral-500">
-            PICKUP (Nigeria)
+            PICKUP ({pickupCountry})
           </legend>
+
+          <select
+            value={pickupCountry}
+            onChange={(e) =>
+              setPickupCountry(e.target.value)
+            }
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          >
+            {COUNTRY_OPTIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
 
           <input
             required
@@ -1155,7 +1179,7 @@ function NewOrderForm({
         </div>
 
         {/* WEIGHT FOR INTERNATIONAL SHIPMENTS */}
-        {isInternational && (
+        {requiresWeight && (
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">
               Package weight (kg)

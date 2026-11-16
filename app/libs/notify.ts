@@ -1,5 +1,8 @@
 ﻿import twilio from "twilio";
 
+const SENDCHAMP_API_KEY = process.env.SENDCHAMP_API_KEY;
+const SENDCHAMP_SENDER_NAME = process.env.SENDCHAMP_SENDER_NAME || "Sendchamp";
+const SENDCHAMP_SMS_ROUTE = process.env.SENDCHAMP_SMS_ROUTE || "dnd";
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
@@ -46,17 +49,31 @@ export async function sendSms(
     return;
   }
 
-  if (!twilioClient || !TWILIO_PHONE_NUMBER) {
-    console.warn("Twilio SMS not configured; skipping message send.");
+  if (!SENDCHAMP_API_KEY) {
+    console.warn("Sendchamp SMS not configured; skipping message send.");
     return;
   }
 
   try {
-    await twilioClient.messages.create({
-      body,
-      from: TWILIO_PHONE_NUMBER,
-      to: normalizedTo,
+    const response = await fetch("https://api.sendchamp.com/api/v1/sms/send", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${SENDCHAMP_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        to: [normalizedTo.replace(/^\+/, "")],
+        message: body,
+        sender_name: SENDCHAMP_SENDER_NAME,
+        route: SENDCHAMP_SMS_ROUTE,
+      }),
+      cache: "no-store",
     });
+
+    if (!response.ok) {
+      throw new Error(`Sendchamp returned HTTP ${response.status}`);
+    }
 
     console.log(`SMS successfully sent to ${normalizedTo}`);
   } catch (err) {
