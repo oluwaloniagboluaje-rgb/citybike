@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { getSafeNextPath } from "@/libs/safeRedirect";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -30,12 +31,16 @@ export default function LoginPage() {
       }
       await refresh();
       const role = data.user.role;
+      const nextPath = getSafeNextPath(
+        new URLSearchParams(window.location.search).get("next")
+      );
       router.push(
-        role === "admin"
-          ? "/dashboard/admin"
-          : role === "driver"
-          ? "/dashboard/driver"
-          : "/dashboard/customer"
+        nextPath ||
+          (role === "admin"
+            ? "/dashboard/admin"
+            : role === "driver"
+              ? "/dashboard/driver"
+              : "/dashboard/customer")
       );
     } finally {
       setLoading(false);
@@ -94,7 +99,19 @@ export default function LoginPage() {
 
       <p className="mt-6 text-center text-sm text-neutral-600">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="font-medium text-orange-600">
+        <Link
+          href="/register"
+          onClick={(event) => {
+            const nextPath = getSafeNextPath(
+              new URLSearchParams(window.location.search).get("next")
+            );
+            if (nextPath) {
+              event.preventDefault();
+              router.push(`/register?next=${encodeURIComponent(nextPath)}`);
+            }
+          }}
+          className="font-medium text-orange-600"
+        >
           Sign up
         </Link>
       </p>

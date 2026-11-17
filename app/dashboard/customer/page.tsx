@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import {
   OrderClient,
   ServiceType,
+  ShippingSpeed,
   SERVICE_TYPE_LABELS,
   COUNTRY_OPTIONS,
 } from "@/types";
@@ -630,6 +631,9 @@ function NewOrderForm({
   const [serviceType, setServiceType] =
     useState<ServiceType>("local");
 
+  const [shippingSpeed, setShippingSpeed] =
+    useState<ShippingSpeed>("standard");
+
   const [packageDescription, setPackageDescription] =
     useState("");
 
@@ -671,6 +675,25 @@ function NewOrderForm({
     isInternational && serviceType === "local"
       ? "international"
       : serviceType;
+
+  const isInternationalShipment =
+    isInternational ||
+    finalServiceType === "international" ||
+    finalServiceType === "dhl_express";
+
+  const bankTransferDetails = isInternationalShipment
+    ? {
+        heading: "💳 INTERNATIONAL SHIPPING PAYMENT DETAILS",
+        bank: "Providus Bank",
+        accountName: "CITYBIKE LOG. & GLOBAL SER. LTD",
+        accountNumber: "1309629802",
+      }
+    : {
+        heading: "💳 Payment Details – CityBike Logistics",
+        bank: "Moniepoint MFB",
+        accountName: "CityBike Logistics Global Service Ltd",
+        accountNumber: "5256910759",
+      };
 
   const requiresWeight = finalServiceType === "international";
   const isWhatsAppFlow =
@@ -756,6 +779,8 @@ function NewOrderForm({
           },
 
           serviceType: finalServiceType,
+
+          shippingSpeed,
 
           packageDescription,
 
@@ -911,7 +936,7 @@ function NewOrderForm({
           !uploadDone && (
             <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4 text-left">
               <h3 className="text-sm font-semibold text-orange-800">
-                💳 Payment Details – CityBike Logistics
+                {bankTransferDetails.heading}
               </h3>
 
               <p className="mt-1 text-sm text-orange-700">
@@ -920,17 +945,18 @@ function NewOrderForm({
 
               <div className="mt-2 text-sm text-neutral-700">
                 <p>
-                  <strong>Bank:</strong> Moniepoint MFB
+                  <strong>Bank:</strong>{" "}
+                  {bankTransferDetails.bank}
                 </p>
 
                 <p>
-                  <strong>Account Name:</strong> CityBike
-                  Logistics Global Service Ltd
+                  <strong>Account Name:</strong>{" "}
+                  {bankTransferDetails.accountName}
                 </p>
 
                 <p>
                   <strong>Account Number:</strong>{" "}
-                  5256910759
+                  {bankTransferDetails.accountNumber}
                 </p>
               </div>
 
@@ -1017,6 +1043,24 @@ function NewOrderForm({
           )}
         </select>
       </div>
+
+      {requiresWeight && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-neutral-700">
+            Shipping speed
+          </label>
+          <select
+            value={shippingSpeed}
+            onChange={(e) =>
+              setShippingSpeed(e.target.value as ShippingSpeed)
+            }
+            className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          >
+            <option value="standard">Standard</option>
+            <option value="express">Express</option>
+          </select>
+        </div>
+      )}
 
       {/* PICKUP / DROPOFF */}
       <div className="grid gap-4 sm:grid-cols-2">

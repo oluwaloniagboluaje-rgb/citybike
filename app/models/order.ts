@@ -52,6 +52,14 @@ export const SERVICE_TYPES = [
 export type ServiceType =
   (typeof SERVICE_TYPES)[number];
 
+export const SHIPPING_SPEEDS = [
+  "standard",
+  "express",
+] as const;
+
+export type ShippingSpeed =
+  (typeof SHIPPING_SPEEDS)[number];
+
 /* =========================================================
    PAYMENT METHOD
 ========================================================= */
@@ -210,6 +218,8 @@ export interface IOrder extends Document {
   dropoff: ILocationPoint;
 
   serviceType: ServiceType;
+
+  shippingSpeed?: ShippingSpeed;
 
   isInternational: boolean;
 
@@ -540,6 +550,12 @@ const OrderSchema =
         enum: SERVICE_TYPES,
         default: "local",
         required: true,
+      },
+
+      shippingSpeed: {
+        type: String,
+        enum: SHIPPING_SPEEDS,
+        default: "standard",
       },
 
       isInternational: {

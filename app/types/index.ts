@@ -32,6 +32,8 @@ export type ServiceType =
   | "errand"
   | "corporate";
 
+export type ShippingSpeed = "standard" | "express";
+
 export type PaymentMethod =
   | "bank_transfer"
   | "paystack"
@@ -134,6 +136,8 @@ export interface OrderClient {
   dropoff: LocationPoint;
 
   serviceType: ServiceType;
+
+  shippingSpeed?: ShippingSpeed;
 
   isInternational: boolean;
 

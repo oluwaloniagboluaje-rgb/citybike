@@ -5,7 +5,11 @@ import User from "@/models/User";
 import { getUserFromRequest } from "@/libs/auth";
 import { serverBroadcast, ADMIN_NOTIFICATIONS_CHANNEL } from "@/libs/broadcast";
 import { generateTrackingNumber } from "@/libs/tracking";
-import { haversineDistanceKm, calculatePrice } from "@/libs/pricing";
+import {
+  haversineDistanceKm,
+  calculatePrice,
+  requiresCustomerServiceQuote,
+} from "@/libs/pricing";
 import { estimateTransitDurationMs } from "@/libs/eta";
 import { sendMail, getOrderCreatedEmail, getAdminNewOrderEmail } from "@/libs/mailer";
 import { sendSms } from "@/libs/notify";
@@ -40,6 +44,7 @@ const createOrderSchema = z.object({
       "corporate",
     ])
     .default("local"),
+  shippingSpeed: z.enum(["standard", "express"]).default("standard"),
   packageDescription: z.string().min(1),
   packageSize: z.enum(["small", "medium", "large"]).default("small"),
   weightKg: z.number().positive().optional(),
@@ -231,7 +236,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { pickup, dropoff, serviceType, packageSize, weightKg } = parsed.data;
+    const {
+      pickup,
+      dropoff,
+      serviceType,
+      shippingSpeed,
+      packageSize,
+      weightKg,
+    } = parsed.data;
 
     const isInternational =
       pickup.country.trim().toLowerCase() !== dropoff.country.trim().toLowerCase();
@@ -242,6 +254,25 @@ export async function POST(req: NextRequest) {
     if (finalServiceType === "international" && !weightKg) {
       return NextResponse.json(
         { error: "Package weight (kg) is required for international shipments" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      finalServiceType === "international" &&
+      weightKg &&
+      requiresCustomerServiceQuote({
+        pickupCountry: pickup.country,
+        dropoffCountry: dropoff.country,
+        shippingSpeed,
+        weightKg,
+      })
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "For express shipments above 5kg, please contact customer service for a personalized shipping quote.",
+        },
         { status: 400 }
       );
     }
@@ -267,6 +298,7 @@ export async function POST(req: NextRequest) {
           pickupCountry: pickup.country,
           dropoffCountry: dropoff.country,
           packageDescription: parsed.data.packageDescription,
+          shippingSpeed,
         });
 
     // Interstate orders are tracked manually by the admin at every stage,

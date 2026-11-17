@@ -1,4 +1,4 @@
-import { ServiceType } from "@/models/order";
+import type { ServiceType, ShippingSpeed } from "@/models/order";
 
 export function haversineDistanceKm(
   lat1: number,
@@ -51,25 +51,34 @@ function roundNaira(value: number) {
   return Math.round(value * POUND_TO_NAIRA);
 }
 
-function calculateNigeriaToUKPrice(weightKg: number) {
-  if (weightKg >= NIGERIA_TO_UK_FLAT_RATE_WEIGHT_KG) {
-    return NIGERIA_TO_UK_FLAT_RATE;
-  }
+function calculateTieredExpressPrice(
+  weightKg: number,
+  tiers: ReadonlyArray<{ maxWeightKg: number; price: number }>
+): number | null {
+  const tier = tiers.find((candidate) => weightKg <= candidate.maxWeightKg);
+  return tier
+    ? tier.price + NIGERIA_EXPRESS_PACKAGING_FEE
+    : null;
+}
 
-  if (weightKg < 1) {
-    return Math.round(weightKg * NIGERIA_TO_UK_RATES[0]);
-  }
+export function requiresCustomerServiceQuote(params: {
+  pickupCountry: string;
+  dropoffCountry: string;
+  shippingSpeed: ShippingSpeed;
+  weightKg: number;
+}): boolean {
+  const origin = normalizeCountry(params.pickupCountry);
+  const destination = normalizeCountry(params.dropoffCountry);
+  const hasCappedExpressRate =
+    origin === "nigeria" &&
+    (destination === "united kingdom" ||
+      destination === "ireland" ||
+      EU_COUNTRIES.has(destination));
 
-  const lowerWeightKg = Math.floor(weightKg);
-  const lowerRate = NIGERIA_TO_UK_RATES[lowerWeightKg - 1];
-  const upperRate =
-    lowerWeightKg + 1 >= NIGERIA_TO_UK_FLAT_RATE_WEIGHT_KG
-      ? NIGERIA_TO_UK_FLAT_RATE
-      : NIGERIA_TO_UK_RATES[lowerWeightKg];
-  const fractionalWeight = weightKg - lowerWeightKg;
-
-  return Math.round(
-    lowerRate + (upperRate - lowerRate) * fractionalWeight
+  return (
+    hasCappedExpressRate &&
+    params.shippingSpeed === "express" &&
+    params.weightKg > MAX_SELF_SERVICE_EXPRESS_WEIGHT_KG
   );
 }
 
@@ -97,59 +106,92 @@ const PER_KG_RATE_BY_COUNTRY: Record<string, number> = {
   canada: 16000,
 };
 
-const EU_COUNTRIES = new Set([
-  "austria",
-  "belgium",
-  "bulgaria",
-  "croatia",
-  "cyprus",
-  "czech republic",
-  "czechia",
-  "denmark",
-  "estonia",
-  "finland",
-  "france",
-  "germany",
-  "greece",
-  "hungary",
-  "latvia",
-  "lithuania",
-  "luxembourg",
-  "malta",
-  "netherlands",
-  "poland",
-  "portugal",
-  "romania",
-  "slovakia",
-  "slovenia",
-  "spain",
-  "sweden",
-  "slovenia",
-  "croatia",
-  "estonia",
-  "latvia",
-  "lithuania",
-]);
+export const EUROPEAN_COUNTRY_OPTIONS = [
+  "Albania",
+  "Andorra",
+  "Armenia",
+  "Austria",
+  "Azerbaijan",
+  "Belarus",
+  "Belgium",
+  "Bosnia and Herzegovina",
+  "Bulgaria",
+  "Croatia",
+  "Cyprus",
+  "Czech Republic",
+  "Denmark",
+  "Estonia",
+  "Finland",
+  "France",
+  "Georgia",
+  "Germany",
+  "Greece",
+  "Hungary",
+  "Iceland",
+  "Ireland",
+  "Italy",
+  "Kazakhstan",
+  "Kosovo",
+  "Latvia",
+  "Liechtenstein",
+  "Lithuania",
+  "Luxembourg",
+  "Malta",
+  "Moldova",
+  "Monaco",
+  "Montenegro",
+  "Netherlands",
+  "North Macedonia",
+  "Norway",
+  "Poland",
+  "Portugal",
+  "Romania",
+  "Russia",
+  "San Marino",
+  "Serbia",
+  "Slovakia",
+  "Slovenia",
+  "Spain",
+  "Sweden",
+  "Switzerland",
+  "Turkey",
+  "Ukraine",
+  "United Kingdom",
+  "Vatican City",
+] as const;
+
+const EU_COUNTRIES = new Set(
+  EUROPEAN_COUNTRY_OPTIONS.map(normalizeCountry)
+);
 
 const DEFAULT_INTERNATIONAL_PER_KG_RATE = 9000;
 const EU_PER_KG_RATE = 16000;
 const PROTEIN_TO_UK_RATE = 10000;
-const NIGERIA_TO_UK_RATES = [
-  30000,
-  39000,
-  47000,
-  56000,
-  65000,
-  79000,
-  85000,
+const NIGERIA_TO_UK_IRELAND_EXPRESS_TIERS = [
+  { maxWeightKg: 2, price: 90000 },
+  { maxWeightKg: 2.5, price: 135000 },
+  { maxWeightKg: 3, price: 155000 },
+  { maxWeightKg: 4, price: 171000 },
+  { maxWeightKg: 5, price: 192000 },
 ] as const;
-const NIGERIA_TO_UK_FLAT_RATE_WEIGHT_KG = 8;
-const NIGERIA_TO_UK_FLAT_RATE = 100000;
+const NIGERIA_TO_EUROPE_EXPRESS_TIERS = [
+  { maxWeightKg: 2, price: 115000 },
+  { maxWeightKg: 2.5, price: 168000 },
+  { maxWeightKg: 3, price: 194000 },
+  { maxWeightKg: 4, price: 206000 },
+  { maxWeightKg: 5, price: 225000 },
+] as const;
+const NIGERIA_EXPRESS_PACKAGING_FEE = 4000;
+const NIGERIA_TO_CANADA_AND_EUROPE_RATE = 16500;
+const NIGERIA_TO_USA_RATE = 18500;
+const NIGERIA_INTERNATIONAL_HANDLING_FEE = 10000;
+const MAX_SELF_SERVICE_EXPRESS_WEIGHT_KG = 5;
 
 const POUND_TO_NAIRA = 1600;
-const UK_TO_NIGERIA_GENERAL_RATE_POUND = 7;
-const UK_TO_NIGERIA_PHONE_RATE_POUND = 20;
-const UK_TO_NIGERIA_LAPTOP_RATE_POUND = 55;
+const UK_TO_NIGERIA_GENERAL_RATE_POUND = 6.8;
+const UK_TO_NIGERIA_HANDLING_FEE_POUND = 5;
+const UK_TO_NIGERIA_PHONE_RATE_POUND = 30;
+const UK_TO_NIGERIA_LAPTOP_RATE_POUND = 40;
 const SEA_CARGO_BARREL_RATE_POUND = 120;
 const GHANA_MUST_GO_RATE_POUND = 90;
 
@@ -170,6 +212,7 @@ export function calculatePrice(params: {
   pickupCountry?: string;
   dropoffCountry?: string;
   packageDescription?: string;
+  shippingSpeed?: ShippingSpeed;
 }): number {
   const {
     serviceType,
@@ -179,6 +222,7 @@ export function calculatePrice(params: {
     pickupCountry,
     dropoffCountry,
     packageDescription,
+    shippingSpeed = "standard",
   } = params;
 
   const origin = normalizeCountry(pickupCountry || "Nigeria");
@@ -187,6 +231,65 @@ export function calculatePrice(params: {
   const weight = weightKg ?? 1;
 
   if (serviceType === "international") {
+    if (origin === "nigeria") {
+      if (
+        destination === "united kingdom" ||
+        destination === "ireland"
+      ) {
+        if (shippingSpeed === "express") {
+          const price = calculateTieredExpressPrice(
+            weight,
+            NIGERIA_TO_UK_IRELAND_EXPRESS_TIERS
+          );
+          if (price === null) {
+            throw new Error(
+              "For shipments above 5kg, please contact customer service for a personalized express shipping quote."
+            );
+          }
+          return price;
+        }
+
+        return Math.round(
+          weight * NIGERIA_TO_CANADA_AND_EUROPE_RATE +
+            NIGERIA_INTERNATIONAL_HANDLING_FEE
+        );
+      }
+
+      if (destination === "canada") {
+        return Math.round(
+          weight * NIGERIA_TO_CANADA_AND_EUROPE_RATE +
+            NIGERIA_INTERNATIONAL_HANDLING_FEE
+        );
+      }
+
+      if (destination === "united states") {
+        return Math.round(
+          weight * NIGERIA_TO_USA_RATE +
+            NIGERIA_INTERNATIONAL_HANDLING_FEE
+        );
+      }
+
+      if (EU_COUNTRIES.has(destination)) {
+        if (shippingSpeed === "express") {
+          const price = calculateTieredExpressPrice(
+            weight,
+            NIGERIA_TO_EUROPE_EXPRESS_TIERS
+          );
+          if (price === null) {
+            throw new Error(
+              "For shipments above 5kg, please contact customer service for a personalized express shipping quote."
+            );
+          }
+          return price;
+        }
+
+        return Math.round(
+          weight * NIGERIA_TO_CANADA_AND_EUROPE_RATE +
+            NIGERIA_INTERNATIONAL_HANDLING_FEE
+        );
+      }
+    }
+
     if (isSeaCargoBarrel(description)) {
       return roundNaira(SEA_CARGO_BARREL_RATE_POUND + PACKAGE_SIZE_FEE[packageSize]);
     }
@@ -195,22 +298,21 @@ export function calculatePrice(params: {
       return roundNaira(GHANA_MUST_GO_RATE_POUND + PACKAGE_SIZE_FEE[packageSize]);
     }
 
-    if (origin === "nigeria" && destination === "united kingdom") {
-      return calculateNigeriaToUKPrice(weight);
-    }
-
     if (isProteinToUK(origin, destination, description)) {
       return Math.round(weight * PROTEIN_TO_UK_RATE + PACKAGE_SIZE_FEE[packageSize]);
     }
 
     if (origin === "united kingdom" && destination === "nigeria") {
       if (isLaptopOrIPad(description)) {
-        return roundNaira(UK_TO_NIGERIA_LAPTOP_RATE_POUND + PACKAGE_SIZE_FEE[packageSize]);
+        return roundNaira(UK_TO_NIGERIA_LAPTOP_RATE_POUND);
       }
       if (isPhoneOrPowerbank(description)) {
-        return roundNaira(UK_TO_NIGERIA_PHONE_RATE_POUND + PACKAGE_SIZE_FEE[packageSize]);
+        return roundNaira(UK_TO_NIGERIA_PHONE_RATE_POUND);
       }
-      return roundNaira(UK_TO_NIGERIA_GENERAL_RATE_POUND + PACKAGE_SIZE_FEE[packageSize]);
+      return roundNaira(
+        weight * UK_TO_NIGERIA_GENERAL_RATE_POUND +
+          UK_TO_NIGERIA_HANDLING_FEE_POUND
+      );
     }
 
     if (destination === "ireland") {
