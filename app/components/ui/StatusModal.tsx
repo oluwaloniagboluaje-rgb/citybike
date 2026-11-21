@@ -33,6 +33,9 @@ export default function StatusModal({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="status-modal-title"
         className="w-full max-w-sm rounded-lg bg-white p-5 text-center shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
@@ -43,7 +46,12 @@ export default function StatusModal({
         >
           {isSuccess ? <CheckCircle2 className="h-6 w-6" /> : <XCircle className="h-6 w-6" />}
         </div>
-        <h2 className="text-base font-semibold text-neutral-900">{state.title}</h2>
+        <h2
+          id="status-modal-title"
+          className="text-base font-semibold text-neutral-900"
+        >
+          {state.title}
+        </h2>
         <p className="mt-1 text-sm text-neutral-600">{state.message}</p>
         <button
           onClick={onClose}

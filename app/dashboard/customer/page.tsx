@@ -29,6 +29,7 @@ import {
   DateFilterValue,
 } from "@/libs/dateGroups";
 import OrderDateFilter from "@/components/orders/OrderDateFilter";
+import MarketingPreferences from "@/components/account/MarketingPreferences";
 
 // Company WhatsApp line.
 const WHATSAPP_NUMBER = "2349152661473";
@@ -335,6 +336,8 @@ export default function CustomerDashboard() {
           }}
         />
       )}
+
+      <MarketingPreferences />
 
       <OrderDateFilter
         value={dateFilter}

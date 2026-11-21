@@ -127,6 +127,13 @@ export default function RegisterForm({
           />
         </div>
 
+        {(nextPath || role === "customer") && (
+          <p className="text-xs text-neutral-500">
+            Active customer accounts receive CityBike Logistics campaign emails.
+            You can unsubscribe at any time from your account or an email.
+          </p>
+        )}
+
         {role === "driver" && !nextPath && (
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">

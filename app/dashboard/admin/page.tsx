@@ -1331,6 +1331,12 @@ export default function AdminDashboard() {
           <Search className="h-4 w-4" />
           Filters & Search
         </button>
+        <Link
+          href="/dashboard/admin/campaigns"
+          className="rounded-md bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-500"
+        >
+          Email Marketing
+        </Link>
       </div>
 
       <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">

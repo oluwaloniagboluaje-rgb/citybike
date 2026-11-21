@@ -12,6 +12,9 @@ export interface IUser extends Document {
   isAvailable?: boolean;
   isActive?: boolean;
   deactivatedAt?: Date;
+  marketingConsent?: boolean;
+  marketingConsentAt?: Date;
+  marketingUnsubscribedAt?: Date;
   resetPasswordTokenHash?: string;
   resetPasswordExpires?: Date;
   createdAt: Date;
@@ -51,6 +54,13 @@ const UserSchema = new Schema<IUser>(
       default: true,
     },
     deactivatedAt: Date,
+    marketingConsent: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    marketingConsentAt: Date,
+    marketingUnsubscribedAt: Date,
     resetPasswordTokenHash: String,
     resetPasswordExpires: Date,
   },

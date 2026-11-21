@@ -17,6 +17,7 @@ const registerSchema = z.object({
   phone: z.string().min(6),
   role: z.enum(["customer", "admin", "driver"]).default("customer"),
   vehicleType: z.string().optional(),
+  marketingConsent: z.boolean().default(false),
 });
 
 export async function POST(req: NextRequest) {
@@ -32,7 +33,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, email, password, phone, role, vehicleType } = parsed.data;
+    const {
+      name,
+      email,
+      password,
+      phone,
+      role,
+      vehicleType,
+      marketingConsent,
+    } = parsed.data;
     const effectiveRole = resolveUserRole(email, role);
 
     const existing = await User.findOne({ email });
@@ -50,6 +59,12 @@ export async function POST(req: NextRequest) {
       password: hashed,
       phone,
       role: effectiveRole,
+      marketingConsent:
+        effectiveRole === "customer" && marketingConsent,
+      marketingConsentAt:
+        effectiveRole === "customer" && marketingConsent
+          ? new Date()
+          : undefined,
       vehicleType: effectiveRole === "driver" ? vehicleType : undefined,
       isAvailable: effectiveRole === "driver" ? true : undefined,
     });
