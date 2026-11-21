@@ -13,6 +13,7 @@ import {
   marketingAppUrl,
   renderMarketingEmail,
 } from "@/libs/marketingEmail";
+import { publishMarketingDispatch } from "@/libs/marketingQueue";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL;
@@ -182,7 +183,8 @@ async function prepareCampaign(campaignId: string): Promise<boolean> {
 }
 
 export async function processCampaignBatch(
-  campaignId: string
+  campaignId: string,
+  expectedBatchNumber?: number
 ): Promise<{ processed: number; status: string; error?: string }> {
   await connectDB();
   const id = campaignId;
@@ -201,6 +203,9 @@ export async function processCampaignBatch(
     {
       _id: id,
       status: { $in: ["queued", "sending"] },
+      ...(expectedBatchNumber === undefined
+        ? {}
+        : { batchNumber: expectedBatchNumber }),
       $or: [
         { workerLockedUntil: { $exists: false } },
         { workerLockedUntil: null },
@@ -483,7 +488,11 @@ export async function processDueMarketingCampaigns(): Promise<{
     $or: [
       { status: "queued" },
       { status: "sending" },
-      { status: "scheduled", scheduledAt: { $lte: now } },
+      {
+        status: "scheduled",
+        scheduledAt: { $lte: now },
+        lastError: { $not: /^QStash enqueue failed:/ },
+      },
       {
         status: "preparing",
         scheduledAt: { $lte: now },
@@ -502,6 +511,24 @@ export async function processDueMarketingCampaigns(): Promise<{
     const result = await processCampaignBatch(campaign._id.toString());
     sentEmails += result.processed;
     processedCampaigns += 1;
+    const updatedCampaign = await MarketingCampaign.findById(campaign._id)
+      .select("status scheduledAt batchNumber workerLockedUntil")
+      .lean();
+    if (
+      updatedCampaign &&
+      ["queued", "sending"].includes(updatedCampaign.status) &&
+      updatedCampaign.scheduledAt
+    ) {
+      await publishMarketingDispatch({
+        dispatch: {
+          campaignId: campaign._id.toString(),
+          scheduledAt: updatedCampaign.scheduledAt.getTime(),
+          batchNumber: updatedCampaign.batchNumber,
+        },
+        notBefore: updatedCampaign.workerLockedUntil,
+        retry: !!result.error || result.processed === 0,
+      });
+    }
   }
   return { processedCampaigns, sentEmails };
 }

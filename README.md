@@ -45,9 +45,29 @@ the admin browser client to upload files and provide public image URLs.
 Campaign sending uses Resend's batch API. Configure `RESEND_API_KEY` and
 `RESEND_FROM_EMAIL` in the hosting environment; test and bulk campaign emails
 do not fall back to SMTP. Configure `NEXT_PUBLIC_APP_URL` to the canonical
-HTTPS site URL. Set a strong `CRON_SECRET` so the Vercel cron can call the
-protected `/api/marketing/worker` endpoint to process due schedules and send
-campaigns in batches of up to 100 recipients.
+HTTPS site URL.
+
+Scheduled campaigns and subsequent recipient batches are dispatched through
+Upstash QStash. Create a QStash account, then add `QSTASH_TOKEN`,
+`QSTASH_CURRENT_SIGNING_KEY`, and `QSTASH_NEXT_SIGNING_KEY` to the Vercel
+project's environment variables. The signing keys are available in the QStash
+console; both are required to verify incoming dispatches. Publish the app with
+the production `NEXT_PUBLIC_APP_URL` set before scheduling campaigns.
+
+QStash's Free plan supports delays up to 7 days and 1,000 messages per day.
+For campaigns scheduled more than 7 days ahead (up to the existing one-year
+campaign limit), select Upstash Pay-as-you-go. Its published rate is $1 per
+100,000 messages, and retries and batch-continuation messages also count.
+The app publishes one message per scheduled campaign and one per follow-up
+batch. Check Upstash's current [QStash pricing](https://upstash.com/pricing/qstash)
+and [delay limits](https://upstash.com/docs/qstash/features/delay) before
+choosing a plan.
+
+`vercel.json` keeps a once-daily Hobby-compatible call to
+`/api/marketing/worker` as a recovery sweep for delayed or interrupted work.
+It is not the campaign scheduler; QStash delivers scheduled campaigns at their
+requested time. Set a strong `CRON_SECRET` in Vercel so the recovery endpoint
+is protected.
 
 For campaign delivery and engagement statistics, configure a Resend webhook
 to `https://<your-site>/api/marketing/webhook` for delivered, bounced, failed,

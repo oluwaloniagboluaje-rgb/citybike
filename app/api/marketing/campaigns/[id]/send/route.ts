@@ -7,7 +7,7 @@ import {
   authorizeMarketingAdmin,
   marketingAuthError,
 } from "@/libs/marketingAdmin";
-import { processCampaignBatch } from "@/libs/marketingDelivery";
+import { publishMarketingDispatch } from "@/libs/marketingQueue";
 
 const sendSchema = z.object({
   scheduledAt: z.string().datetime().optional(),
@@ -60,7 +60,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const requestedDate = parsed.data.scheduledAt
       ? new Date(parsed.data.scheduledAt)
       : new Date();
-    const isScheduled = requestedDate.getTime() > Date.now() + 60_000;
+    const isScheduled = requestedDate.getTime() > Date.now();
+    const scheduledAt = isScheduled ? requestedDate : new Date();
     if (
       isScheduled &&
       requestedDate.getTime() > Date.now() + 365 * 24 * 60 * 60 * 1000
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       {
         $set: {
           status: "scheduled",
-          scheduledAt: isScheduled ? requestedDate : new Date(),
+          scheduledAt,
           lastError: "",
           recipientCount: 0,
           sentCount: 0,
@@ -99,38 +100,74 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
 
     if (isScheduled) {
+      try {
+        await publishMarketingDispatch({
+          dispatch: {
+            campaignId: id,
+            scheduledAt: scheduledAt.getTime(),
+            batchNumber: 0,
+          },
+          notBefore: scheduledAt,
+        });
+      } catch (error) {
+        await MarketingCampaign.updateOne(
+          {
+            _id: id,
+            status: "scheduled",
+            scheduledAt,
+          },
+          {
+            $set: {
+              lastError:
+                `QStash enqueue failed: ${
+                  error instanceof Error
+                    ? error.message
+                    : "Could not queue campaign scheduling."
+                }`,
+            },
+          }
+        );
+        throw error;
+      }
+
       return NextResponse.json({
         campaign,
         message: "Campaign scheduled successfully.",
       });
     }
 
-    const result = await processCampaignBatch(id);
-    const updatedCampaign = await MarketingCampaign.findById(id).lean();
-    if (result.status === "failed") {
-      return NextResponse.json(
-        {
-          error:
-            updatedCampaign?.lastError ||
-            "No active, subscribed customers were found.",
-          campaign: updatedCampaign,
+    try {
+      await publishMarketingDispatch({
+        dispatch: {
+          campaignId: id,
+          scheduledAt: scheduledAt.getTime(),
+          batchNumber: 0,
         },
-        { status: 400 }
-      );
-    }
-    if (result.error) {
-      return NextResponse.json(
+      });
+    } catch (error) {
+      await MarketingCampaign.updateOne(
         {
-          error: result.error,
-          campaign: updatedCampaign,
-          message: "Campaign remains queued and will retry in a later batch.",
+          _id: id,
+          status: "scheduled",
+          scheduledAt,
         },
-        { status: 502 }
+        {
+          $set: {
+            lastError:
+              `QStash enqueue failed: ${
+                error instanceof Error
+                  ? error.message
+                  : "Could not queue campaign delivery."
+              }`,
+          },
+        }
       );
+      throw error;
     }
+
     return NextResponse.json({
-      campaign: updatedCampaign,
-      message: "Campaign queued and the first batch was processed.",
+      campaign,
+      message: "Campaign queued for immediate delivery.",
     });
   } catch (error) {
     console.error("Marketing campaign send failed:", error);
